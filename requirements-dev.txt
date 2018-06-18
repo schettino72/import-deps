@@ -1,0 +1,4 @@
+pyflakes
+pytest
+doit
+coverage
