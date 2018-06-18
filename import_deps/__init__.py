@@ -45,7 +45,7 @@ class PyModule(object):
     def __init__(self, path):
         self.path = pathlib.Path(path)
         assert self.path.suffix == '.py'
-        self.fqn = self._get_fqn(path)
+        self.fqn = self._get_fqn(self.path)
 
     def __repr__(self):
         return "<PyModule {}>".format(self.path)
@@ -110,7 +110,7 @@ class ModuleSet(object):
             return self.by_name[pkg_name]
 
 
-    def get_imports(self, module):
+    def get_imports(self, module, return_path=True):
         """return set of imported modules that are in self
         :param module: PyModule
         :return: (set - str) of path names
@@ -130,6 +130,10 @@ class ModuleSet(object):
                 imported = self._get_imported_module(intra)
             else:
                 imported = self._get_imported_module(full)
+
             if imported:
-                imports.add(imported.path)
+                if return_path:
+                    imports.add(imported.path)
+                else:
+                    imports.add('.'.join(imported.fqn))
         return imports
