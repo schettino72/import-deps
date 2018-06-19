@@ -63,6 +63,9 @@ class Test_PyModule(object):
         assert ['foo', 'foo_a'] == PyModule(FOO.a).fqn
         assert ['foo', 'sub', 'sub_a'] == PyModule(SUB.a).fqn
 
+    def test_pkg_path(self):
+        assert sample_dir == PyModule(BAR).pkg_path()
+        assert sample_dir == PyModule(SUB.a).pkg_path()
 
 
 class Test_ModuleSet_Init(object):
@@ -162,3 +165,12 @@ class Test_ModuleSet_GetImports(object):
         got = modset.get_imports(modset.by_name['foo.sub.sub_a'])
         assert len(got) == 1
         assert FOO.d in got
+
+    def test_return_module_name(self):
+        # foo_a  =>  import bar
+        modset = ModuleSet([FOO.a, BAR])
+        got = modset.get_imports(modset.by_name['foo.foo_a'],
+                                 return_fqn=True)
+        name = got.pop()
+        assert len(got) == 0
+        assert name == 'bar'

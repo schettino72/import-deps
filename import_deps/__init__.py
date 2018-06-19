@@ -55,6 +55,12 @@ class PyModule(object):
         """return True if path is a python package"""
         return (path.is_dir() and (path / '__init__.py').exists())
 
+    def pkg_path(self):
+        """return pathlib.Path that contains top-most package/module
+        Path that is supposed to be part of PYTHONPATH
+        """
+        return self.path.parents[len(self.fqn)-1]
+
     @classmethod
     def _get_fqn(cls, path):
         """get full qualified name as list of strings
@@ -110,7 +116,7 @@ class ModuleSet(object):
             return self.by_name[pkg_name]
 
 
-    def get_imports(self, module, return_path=True):
+    def get_imports(self, module, return_fqn=False):
         """return set of imported modules that are in self
         :param module: PyModule
         :return: (set - str) of path names
@@ -132,8 +138,8 @@ class ModuleSet(object):
                 imported = self._get_imported_module(full)
 
             if imported:
-                if return_path:
-                    imports.add(imported.path)
-                else:
+                if return_fqn:
                     imports.add('.'.join(imported.fqn))
+                else:
+                    imports.add(imported.path)
         return imports
