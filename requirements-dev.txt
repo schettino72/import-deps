@@ -2,3 +2,4 @@ pyflakes
 pytest
 doit
 coverage
+doit-py
