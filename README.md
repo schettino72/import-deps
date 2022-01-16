@@ -23,25 +23,24 @@ pip install import_deps
 
 Given a package with the modules:
 
-- foo/__init__.py
-- foo/foo_a.py
-- foo/foo_b.py
-- foo/foo_c.py
+- `foo/__init__.py`
+- `foo/foo_a.py`
+- `foo/foo_b.py`
+- `foo/foo_c.py`
 
 Where `foo_a.py` has the following imports:
 
-```
+```python3
 from . import foo_b
 from .foo_c import obj_c
 ```
 
 
-```
+```python3
 import pathlib
 from import_deps import ModuleSet
 
 # First initialise a ModuleSet instance with a list str of modules to track
-
 pkg_paths = pathlib.Path('foo').glob('**/*.py')
 module_set = ModuleSet([str(p) for p in pkg_paths])
 
@@ -61,7 +60,7 @@ You can get a list of  all modules in a `ModuleSet` by path or module's full qua
 
 Note that key for `by_path` must be exactly the as provided on ModuleSet initialization.
 
-```
+```python3
 for mod in sorted(module_set.by_path.keys()):
     print(mod)
 
@@ -74,7 +73,7 @@ for mod in sorted(module_set.by_path.keys()):
 
 `by_name`
 
-```
+```python3
 for mod in sorted(module_set.by_name.keys()):
     print(mod)
 
@@ -106,7 +105,7 @@ ast_imports('foo.py')
 ```
 
 
-```
+```python3
 # import datetime
 (None, 'datetime', None, None)
 

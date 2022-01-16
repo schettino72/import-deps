@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="import_deps",
-    version="0.2.0dev",
+    version="0.2.0",
     author = 'Eduardo Naufel Schettino',
     author_email = 'schettino72@gmail.com',
     url = 'https://github.com/schettino72/import-deps',
