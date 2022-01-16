@@ -1,4 +1,4 @@
-
+import os
 import pathlib
 
 from import_deps import ast_imports
@@ -67,6 +67,14 @@ class Test_PyModule(object):
         assert sample_dir == PyModule(BAR).pkg_path()
         assert sample_dir == PyModule(SUB.a).pkg_path()
 
+    def test_relative_path(self):
+        cwd = os.getcwd()
+        try:
+            # do not try to get package beyond given relative path
+            os.chdir(FOO.pkg.resolve())
+            assert ['foo_a'] == PyModule('foo_a.py').fqn
+        finally:
+            os.chdir(cwd)
 
 class Test_ModuleSet_Init(object):
 

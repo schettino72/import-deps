@@ -1,6 +1,7 @@
 import ast
 import pathlib
 
+
 class _ImportsFinder(ast.NodeVisitor):
     """find all imports
     :ivar imports: (list - tuple) (module, name, asname, level)
@@ -69,9 +70,14 @@ class PyModule(object):
         name_list = [path.stem]
         current_path = path
         # move to parent path until parent path is a python package
-        while cls.is_pkg(current_path.parent):
-            name_list.append(current_path.parent.name)
-            current_path = current_path.parent
+        while True:
+            parent = current_path.parent
+            if parent.name in ('', '.', '..'):
+                break
+            if not cls.is_pkg(parent):
+                break
+            name_list.append(parent.name)
+            current_path = parent
         return list(reversed(name_list))
 
 
