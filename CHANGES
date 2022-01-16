@@ -3,6 +3,13 @@ Changes
 =======
 
 
+0.1.0 (*unreleased*)
+=====================
+
+- drop support python 3.5 and 3.6
+- add support for python 3.8, 3.9 and 3.10
+
+
 0.1.0 (*2018-06-24*)
 =====================
 
