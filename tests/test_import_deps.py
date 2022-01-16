@@ -182,3 +182,12 @@ class Test_ModuleSet_GetImports(object):
         name = got.pop()
         assert len(got) == 0
         assert name == 'bar'
+
+
+
+    def test_mod_imports(self):
+        # foo_a  =>  import bar
+        modset = ModuleSet([FOO.init, FOO.a, FOO.b, FOO.c, BAR])
+        got = modset.mod_imports('foo.foo_a')
+        imports = list(sorted(got))
+        assert imports == ['bar', 'foo.foo_b', 'foo.foo_c']

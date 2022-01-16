@@ -125,7 +125,8 @@ class ModuleSet(object):
     def get_imports(self, module, return_fqn=False):
         """return set of imported modules that are in self
         :param module: PyModule
-        :return: (set - str) of path names
+        :return: (set - Path)
+                 (set - str) if return_fqn == True
         """
         # print('####', module.fqn)
         # print(self.by_name.keys(), '\n\n')
@@ -149,3 +150,9 @@ class ModuleSet(object):
                 else:
                     imports.add(imported.path)
         return imports
+
+
+    # higher level API
+    def mod_imports(self, mod_fqn):
+        mod = self.by_name[mod_fqn]
+        return self.get_imports(mod, return_fqn=True)

@@ -9,6 +9,7 @@ Changes
 - drop support python 3.5 and 3.6
 - add support for python 3.8, 3.9 and 3.10
 - do not try to get package above given relative path
+- add mod_imports()
 
 
 0.1.0 (*2018-06-24*)
