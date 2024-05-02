@@ -3,6 +3,10 @@
 
 name: test
 
+# Drop permissions to minimum for security
+permissions:
+  contents: read
+
 on:
   push:
   pull_request:
