@@ -10,6 +10,8 @@ permissions:
 on:
   push:
   pull_request:
+  schedule:
+    - cron: '0 16 * * 5'  # Every Friday 4pm
 
 jobs:
   build:
