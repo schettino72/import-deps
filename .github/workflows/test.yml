@@ -3,11 +3,15 @@
 
 name: test
 
+# Drop permissions to minimum for security
+permissions:
+  contents: read
+
 on:
   push:
-    branches: [ master ]
   pull_request:
-    branches: [ master ]
+  schedule:
+    - cron: '0 16 * * 5'  # Every Friday 4pm
 
 jobs:
   build:
@@ -16,12 +20,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.8", "3.9", "3.10"]
+        python-version: ["3.8", "3.12"]  # no particular need for the in-between
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
     - name: Install dependencies
