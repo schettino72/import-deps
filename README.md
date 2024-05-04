@@ -16,8 +16,8 @@ so the modules being analysed are *not* executed.
 pip install import_deps
 ```
 
-## Usage
 
+## Usage
 
 `import_deps` is designed to track only imports within a known set of package and modules.
 
@@ -35,6 +35,16 @@ from . import foo_b
 from .foo_c import obj_c
 ```
 
+## Usage (CLI)
+
+```bash
+> import_deps foo/foo_a.py
+foo.foo_b
+foo.foo_c
+```
+
+
+## Usage (lib)
 
 ```python3
 import pathlib
