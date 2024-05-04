@@ -4,10 +4,12 @@ import sys
 from . import __version__, PyModule, ModuleSet
 
 
-def _main(argv):
+def main(argv=sys.argv):
     parser = argparse.ArgumentParser(prog='import_deps')
-    parser.add_argument('module_path', metavar='PATH/TO/FILE.py', help='Python file to analyze')
-    parser.add_argument('--version', action='version', version='.'.join(str(i) for i in __version__))
+    parser.add_argument('module_path', metavar='PATH/TO/FILE.py',
+                        help='Python file to analyze')
+    parser.add_argument('--version', action='version',
+                        version='.'.join(str(i) for i in __version__))
     config = parser.parse_args(argv[1:])
 
     module = PyModule(config.module_path)
@@ -18,4 +20,4 @@ def _main(argv):
     sys.exit(0)
 
 if __name__ == '__main__':
-    _main(sys.argv)
+    main(sys.argv)
