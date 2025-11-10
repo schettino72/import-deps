@@ -117,10 +117,11 @@ You can visualize the graph using graphviz:
 > import_deps foo/ --dot | dot -Tsvg > dependencies.svg
 ```
 
-The DOT output automatically:
-- Groups modules by package in rounded rectangles (clusters)
-- Nests sub-packages hierarchically
-- Highlights **circular dependencies** in **bold red** - edges that are part of import cycles
+The DOT output features:
+- Modules displayed as light blue rounded boxes
+- Packages grouped with dashed gray borders (clearly distinct from arrows)
+- Sub-packages nested hierarchically
+- Circular dependencies highlighted in **bold red arrows**
 
 ### Check for circular dependencies
 

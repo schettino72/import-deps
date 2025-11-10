@@ -52,6 +52,8 @@ def format_dot(results, highlight_cycles=True):
     """Format results as DOT graph for graphviz"""
     lines = ['digraph imports {']
     lines.append('    rankdir=LR;')
+    lines.append('    node [shape=box, style="rounded,filled", fillcolor=lightblue, fontname="Arial"];')
+    lines.append('    edge [fontname="Arial"];')
 
     # Detect cycles
     cycle_edges = detect_cycles(results) if highlight_cycles else set()
@@ -77,7 +79,11 @@ def format_dot(results, highlight_cycles=True):
         ind = '    ' * indent
         lines.append(f'{ind}subgraph cluster_{pkg_name.replace(".", "_")} {{')
         lines.append(f'{ind}    label = "{pkg_name}";')
-        lines.append(f'{ind}    style = rounded;')
+        lines.append(f'{ind}    style = "rounded,dashed";')
+        lines.append(f'{ind}    color = gray40;')
+        lines.append(f'{ind}    fontsize = 11;')
+        lines.append(f'{ind}    fontcolor = gray20;')
+        lines.append(f'{ind}    penwidth = 1.5;')
 
         # Find direct children of this package
         for mod in sorted(modules):
