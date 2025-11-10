@@ -1,0 +1,48 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "import_deps"
+version = "0.4.dev0"
+description = "find python module imports"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "Eduardo Naufel Schettino", email = "schettino72@gmail.com"}
+]
+keywords = ["import", "graph", "quality"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "License :: OSI Approved :: MIT License",
+    "Natural Language :: English",
+    "Operating System :: OS Independent",
+    "Operating System :: POSIX",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Quality Assurance",
+]
+
+[project.urls]
+Homepage = "https://github.com/schettino72/import-deps"
+Repository = "https://github.com/schettino72/import-deps"
+Issues = "https://github.com/schettino72/import-deps/issues"
+
+[project.scripts]
+import_deps = "import_deps.__main__:main"
+
+[project.optional-dependencies]
+dev = [
+    "pyflakes",
+    "pytest",
+    "doit",
+    "coverage",
+    "doit-py",
+]

@@ -2,6 +2,13 @@
 Changes
 =======
 
+0.4.0 (*unreleased*)
+====================
+
+- drop support for Python 3.8 and 3.9
+- add support for Python 3.13 and 3.14
+
+
 0.3.0 (*2024-05-04*)
 ====================
 
