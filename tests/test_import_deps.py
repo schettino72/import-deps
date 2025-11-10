@@ -1,9 +1,13 @@
+import json
 import os
 import pathlib
+
+import pytest
 
 from import_deps import ast_imports
 from import_deps import PyModule
 from import_deps import ModuleSet
+from import_deps.__main__ import main
 
 
 # list of modules in sample folder used for testing
@@ -191,3 +195,69 @@ class Test_ModuleSet_GetImports(object):
         got = modset.mod_imports('foo.foo_a')
         imports = list(sorted(got))
         assert imports == ['bar', 'foo.foo_b', 'foo.foo_c']
+
+
+class Test_CLI(object):
+    def test_single_file(self, capsys):
+        # Test single file analysis
+        with pytest.raises(SystemExit) as exc_info:
+            main(['import_deps', str(FOO.a)])
+
+        assert exc_info.value.code == 0
+        captured = capsys.readouterr()
+        lines = captured.out.strip().split('\n')
+        assert 'bar' in lines
+        assert 'foo.foo_b' in lines
+        assert 'foo.foo_c' in lines
+
+    def test_single_file_json(self, capsys):
+        # Test single file with JSON output
+        with pytest.raises(SystemExit) as exc_info:
+            main(['import_deps', str(FOO.a), '--json'])
+
+        assert exc_info.value.code == 0
+        captured = capsys.readouterr()
+        result = json.loads(captured.out)
+
+        assert len(result) == 1
+        assert result[0]['module'] == 'foo.foo_a'
+        assert 'bar' in result[0]['imports']
+        assert 'foo.foo_b' in result[0]['imports']
+        assert 'foo.foo_c' in result[0]['imports']
+
+    def test_directory(self, capsys):
+        # Test directory analysis
+        with pytest.raises(SystemExit) as exc_info:
+            main(['import_deps', str(FOO.pkg)])
+
+        assert exc_info.value.code == 0
+        captured = capsys.readouterr()
+        output = captured.out
+
+        # Should contain module names and their imports
+        assert 'foo.foo_a:' in output
+        assert 'foo.foo_d:' in output
+        assert 'foo.sub.sub_a:' in output
+
+    def test_directory_json(self, capsys):
+        # Test directory with JSON output
+        with pytest.raises(SystemExit) as exc_info:
+            main(['import_deps', str(FOO.pkg), '--json'])
+
+        assert exc_info.value.code == 0
+        captured = capsys.readouterr()
+        result = json.loads(captured.out)
+
+        # Should have multiple modules
+        assert len(result) > 1
+
+        # Find foo.foo_a module
+        foo_a = next((m for m in result if m['module'] == 'foo.foo_a'), None)
+        assert foo_a is not None
+        assert 'foo.foo_b' in foo_a['imports']
+        assert 'foo.foo_c' in foo_a['imports']
+
+        # Find foo.sub.sub_a module
+        sub_a = next((m for m in result if m['module'] == 'foo.sub.sub_a'), None)
+        assert sub_a is not None
+        assert 'foo.foo_d' in sub_a['imports']

@@ -37,10 +37,62 @@ from .foo_c import obj_c
 
 ## Usage (CLI)
 
+### Analyze a single file
+
 ```bash
 > import_deps foo/foo_a.py
 foo.foo_b
 foo.foo_c
+```
+
+### Analyze a package directory
+
+```bash
+> import_deps foo/
+foo.__init__:
+foo.foo_a:
+  foo.foo_b
+  foo.foo_c
+foo.foo_b:
+foo.foo_c:
+  foo.__init__
+```
+
+### JSON output
+
+Use the `--json` flag to get results in JSON format:
+
+```bash
+> import_deps foo/foo_a.py --json
+[
+  {
+    "module": "foo.foo_a",
+    "imports": [
+      "foo.foo_b",
+      "foo.foo_c"
+    ]
+  }
+]
+```
+
+For package analysis with JSON:
+
+```bash
+> import_deps foo/ --json
+[
+  {
+    "module": "foo.__init__",
+    "imports": []
+  },
+  {
+    "module": "foo.foo_a",
+    "imports": [
+      "foo.foo_b",
+      "foo.foo_c"
+    ]
+  },
+  ...
+]
 ```
 
 
