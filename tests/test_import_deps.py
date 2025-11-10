@@ -261,3 +261,43 @@ class Test_CLI(object):
         sub_a = next((m for m in result if m['module'] == 'foo.sub.sub_a'), None)
         assert sub_a is not None
         assert 'foo.foo_d' in sub_a['imports']
+
+    def test_single_file_dot(self, capsys):
+        # Test single file with DOT output
+        with pytest.raises(SystemExit) as exc_info:
+            main(['import_deps', str(FOO.a), '--dot'])
+
+        assert exc_info.value.code == 0
+        captured = capsys.readouterr()
+        output = captured.out
+
+        # Check DOT format structure
+        assert 'digraph imports {' in output
+        assert '}' in output
+        assert '"foo.foo_a" -> "foo.foo_b";' in output
+        assert '"foo.foo_a" -> "foo.foo_c";' in output
+
+    def test_directory_dot(self, capsys):
+        # Test directory with DOT output
+        with pytest.raises(SystemExit) as exc_info:
+            main(['import_deps', str(FOO.pkg), '--dot'])
+
+        assert exc_info.value.code == 0
+        captured = capsys.readouterr()
+        output = captured.out
+
+        # Check DOT format structure
+        assert 'digraph imports {' in output
+        assert '}' in output
+        assert '"foo.foo_a" -> "foo.foo_b";' in output
+        assert '"foo.foo_c" -> "foo.__init__";' in output
+        assert '"foo.sub.sub_a" -> "foo.foo_d";' in output
+
+    def test_mutually_exclusive_flags(self, capsys):
+        # Test that --json and --dot are mutually exclusive
+        with pytest.raises(SystemExit) as exc_info:
+            main(['import_deps', str(FOO.a), '--json', '--dot'])
+
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert 'mutually exclusive' in captured.err

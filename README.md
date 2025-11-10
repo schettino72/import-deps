@@ -95,6 +95,28 @@ For package analysis with JSON:
 ]
 ```
 
+### DOT output for visualization
+
+Use the `--dot` flag to generate a dependency graph in DOT format for graphviz:
+
+```bash
+> import_deps foo/ --dot
+digraph imports {
+    "foo.foo_a" -> "foo.foo_b";
+    "foo.foo_a" -> "foo.foo_c";
+    "foo.foo_c" -> "foo.__init__";
+    "foo.foo_d" -> "foo.foo_c";
+    "foo.sub.sub_a" -> "foo.foo_d";
+}
+```
+
+You can visualize the graph using graphviz:
+
+```bash
+> import_deps foo/ --dot | dot -Tpng > dependencies.png
+> import_deps foo/ --dot | dot -Tsvg > dependencies.svg
+```
+
 
 ## Usage (lib)
 

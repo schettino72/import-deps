@@ -6,6 +6,7 @@ Changes
 ====================
 
 - add JSON output support with --json flag
+- add DOT output support with --dot flag for graphviz visualization
 - add support for analyzing entire package directories
 - drop support for Python 3.8 and 3.9
 - add support for Python 3.13 and 3.14

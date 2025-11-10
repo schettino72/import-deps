@@ -42,6 +42,7 @@ import_deps = "import_deps.__main__:main"
 dev = [
     "pyflakes",
     "pytest",
+    "pytest-cov",
     "doit",
     "coverage",
     "doit-py",
