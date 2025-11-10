@@ -301,3 +301,29 @@ class Test_CLI(object):
         assert exc_info.value.code == 1
         captured = capsys.readouterr()
         assert 'mutually exclusive' in captured.err
+
+    def test_no_cycles_in_sample(self, capsys):
+        # Test that sample data has no circular dependencies
+        # So no red edges should appear in DOT output
+        with pytest.raises(SystemExit) as exc_info:
+            main(['import_deps', str(FOO.pkg), '--dot'])
+
+        assert exc_info.value.code == 0
+        captured = capsys.readouterr()
+        output = captured.out
+
+        # Normal dependencies should not have color attribute
+        assert '"foo.sub.sub_a" -> "foo.foo_d";' in output
+        assert '"foo.foo_c" -> "foo.__init__";' in output
+
+        # No cycles in sample data, so no red edges
+        assert 'color=red' not in output
+
+    def test_check_no_cycles(self, capsys):
+        # Test --check on data without cycles
+        with pytest.raises(SystemExit) as exc_info:
+            main(['import_deps', str(FOO.pkg), '--check'])
+
+        assert exc_info.value.code == 0
+        captured = capsys.readouterr()
+        assert 'No circular dependencies found' in captured.out

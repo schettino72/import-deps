@@ -117,6 +117,29 @@ You can visualize the graph using graphviz:
 > import_deps foo/ --dot | dot -Tsvg > dependencies.svg
 ```
 
+The DOT output automatically:
+- Groups modules by package in rounded rectangles (clusters)
+- Nests sub-packages hierarchically
+- Highlights **circular dependencies** in **bold red** - edges that are part of import cycles
+
+### Check for circular dependencies
+
+Use the `--check` flag to detect circular dependencies and exit with error if any are found:
+
+```bash
+> import_deps foo/ --check
+No circular dependencies found.
+
+# If cycles are detected:
+> import_deps foo/ --check
+Circular dependencies detected:
+  foo.module_a -> foo.module_b
+  foo.module_b -> foo.module_a
+# (exits with code 1)
+```
+
+This is useful for CI/CD pipelines to enforce DAG (Directed Acyclic Graph) structure in your codebase.
+
 
 ## Usage (lib)
 
