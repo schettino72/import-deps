@@ -50,45 +50,135 @@ def detect_cycles(results):
 
 def topological_sort(results):
     """Topological sort of modules (dependencies before dependents).
-    Uses Kahn's algorithm with alphabetical ordering for stability.
-    Returns list of module names in topological order.
+    Uses Kahn's algorithm with rank-based ordering for stability.
+    Rank is defined as the longest path from any leaf node (module that imports but isn't imported).
+    When multiple nodes become available, nodes with higher rank are output first.
+
+    Handles circular dependencies gracefully:
+    - Nodes actually in cycles are identified and processed last
+    - Nodes that depend on cycles (but aren't in them) are processed normally
+    - Isolated nodes (no dependencies, no dependents) are placed last
+
+    Returns list of module names in topological order (dependencies before dependents).
     """
-    # First, collect all modules
+    # Collect all modules
     all_modules = set(result['module'] for result in results)
 
-    # Build graph: module -> list of modules that depend on it
-    graph = {module: [] for module in all_modules}
-    in_degree = {module: 0 for module in all_modules}
-
+    # Build dependencies: module -> list of modules it imports (its dependencies)
+    dependencies = {module: [] for module in all_modules}
     for result in results:
         module = result['module']
-        for imp in result['imports']:
-            if imp in all_modules:  # Only consider tracked modules
-                graph[imp].append(module)
-                in_degree[module] += 1
+        dependencies[module] = [imp for imp in result['imports'] if imp in all_modules]
 
-    # Find all nodes with no incoming edges (alphabetically sorted for stability)
-    queue = sorted([node for node in all_modules if in_degree.get(node, 0) == 0])
+    # Build reverse graph: module -> list of modules that import it (its dependents)
+    dependents = {module: [] for module in all_modules}
+
+    for module in all_modules:
+        for dep in dependencies[module]:
+            dependents[dep].append(module)
+
+    # Calculate rank for each node (longest path from any leaf node)
+    # Leaf nodes are those that have no dependents (nothing imports them)
+    # Detect cycles using DFS with recursion stack
+    rank = {}
+    in_cycle = set()
+
+    def calculate_rank(node, visiting=None, rec_path=None):
+        if visiting is None:
+            visiting = set()
+        if rec_path is None:
+            rec_path = []
+
+        if node in rank:
+            return rank[node]
+
+        if node in visiting:
+            # Cycle detected - mark all nodes in the cycle path
+            cycle_start = rec_path.index(node)
+            for i in range(cycle_start, len(rec_path)):
+                in_cycle.add(rec_path[i])
+            in_cycle.add(node)
+            return -1  # Special value for cycles
+
+        visiting.add(node)
+        rec_path.append(node)
+        deps = dependents[node]  # Use dependents (who imports this node)
+
+        if not deps:
+            rank[node] = 1  # Leaf nodes (not imported by anyone) have rank 1
+        else:
+            dep_ranks = []
+            for dep in deps:
+                dep_rank = calculate_rank(dep, visiting, rec_path)
+                if dep_rank == -1:
+                    # Dependent is in cycle
+                    pass
+                else:
+                    dep_ranks.append(dep_rank)
+
+            # Only mark as cycle if this node is actually in the cycle
+            if node in in_cycle:
+                rank[node] = -1
+            elif dep_ranks:
+                rank[node] = max(dep_ranks) + 1
+            else:
+                # All dependents are in cycles, but this node isn't
+                rank[node] = 2
+
+        rec_path.pop()
+        visiting.remove(node)
+        return rank[node]
+
+    for module in all_modules:
+        if module not in rank:
+            calculate_rank(module)
+
+    # Topological sort: start with roots (nodes with no dependencies)
+    # in_degree tracks how many unprocessed dependencies each node has
+    in_degree = {module: len(dependencies[module]) for module in all_modules}
+
+    # Separate cycle nodes and isolated nodes from regular nodes
+    cycle_nodes = {node for node in all_modules if rank[node] == -1}
+    isolated_nodes = {node for node in all_modules
+                      if len(dependencies[node]) == 0 and len(dependents[node]) == 0}
+
+    non_cycle_roots = [node for node in all_modules
+                       if in_degree[node] == 0
+                       and node not in cycle_nodes
+                       and node not in isolated_nodes]
+
+    # Initial queue: non-cycle, non-isolated roots, sorted by rank DESC then name ASC
+    queue = sorted(non_cycle_roots, key=lambda x: (-rank[x], x))
     sorted_list = []
 
     while queue:
-        # Pop first element (maintains alphabetical order)
         node = queue.pop(0)
         sorted_list.append(node)
 
-        # For each dependent of this node
-        for dependent in sorted(graph.get(node, [])):
-            in_degree[dependent] -= 1
-            if in_degree[dependent] == 0:
-                # Insert in sorted position to maintain alphabetical order
-                import bisect
-                bisect.insort(queue, dependent)
+        # Process all dependents of this node (nodes that import this node)
+        for dependent in dependents[node]:
+            if dependent not in cycle_nodes and dependent not in isolated_nodes:
+                in_degree[dependent] -= 1
+                if in_degree[dependent] == 0:
+                    # Insert maintaining rank order (higher rank first)
+                    # Within same rank, maintain FIFO order
+                    dep_rank = rank[dependent]
+                    insert_idx = len(queue)
+                    for i, queued_node in enumerate(queue):
+                        if rank[queued_node] < dep_rank:
+                            insert_idx = i
+                            break
+                    queue.insert(insert_idx, dependent)
 
-    # If we couldn't sort all nodes, there's a cycle
-    if len(sorted_list) != len(all_modules):
-        # Return partial sort with remaining nodes appended alphabetically
-        remaining = sorted(all_modules - set(sorted_list))
-        sorted_list.extend(remaining)
+    # Handle remaining nodes (cycles and nodes not yet processed, but not isolated)
+    remaining = all_modules - set(sorted_list) - isolated_nodes
+    if remaining:
+        # Add remaining nodes sorted alphabetically
+        sorted_list.extend(sorted(remaining))
+
+    # Add isolated nodes last (sorted alphabetically)
+    if isolated_nodes:
+        sorted_list.extend(sorted(isolated_nodes))
 
     return sorted_list
 
