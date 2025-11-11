@@ -47,3 +47,8 @@ dev = [
     "coverage",
     "doit-py",
 ]
+
+[dependency-groups]
+dev = [
+    "twine>=6.2.0",
+]
