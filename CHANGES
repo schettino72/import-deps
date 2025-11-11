@@ -11,6 +11,7 @@ Changes
 - add JSON output support with --json flag
 - add DOT output support with --dot flag for graphviz visualization
 - add --check flag to detect circular dependencies and exit with error if found
+- add --sort flag to output modules in topological order (dependencies first)
 
 
 0.3.0 (*2024-05-04*)

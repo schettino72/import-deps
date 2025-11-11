@@ -327,3 +327,44 @@ class Test_CLI(object):
         assert exc_info.value.code == 0
         captured = capsys.readouterr()
         assert 'No circular dependencies found' in captured.out
+
+    def test_sort(self, capsys):
+        # Test --sort topological ordering
+        with pytest.raises(SystemExit) as exc_info:
+            main(['import_deps', str(FOO.pkg), '--sort'])
+
+        assert exc_info.value.code == 0
+        captured = capsys.readouterr()
+        modules = captured.out.strip().split('\n')
+
+        # Verify all modules are present
+        assert 'foo.__init__' in modules
+        assert 'foo.foo_a' in modules
+        assert 'foo.foo_b' in modules
+        assert 'foo.foo_c' in modules
+        assert 'foo.foo_d' in modules
+        assert 'foo.sub.__init__' in modules
+        assert 'foo.sub.sub_a' in modules
+
+        # Verify topological order: dependencies come before dependents
+        # foo.foo_a depends on foo.foo_b and foo.foo_c
+        assert modules.index('foo.foo_b') < modules.index('foo.foo_a')
+        assert modules.index('foo.foo_c') < modules.index('foo.foo_a')
+
+        # foo.foo_c depends on foo.__init__
+        assert modules.index('foo.__init__') < modules.index('foo.foo_c')
+
+        # foo.foo_d depends on foo.foo_c
+        assert modules.index('foo.foo_c') < modules.index('foo.foo_d')
+
+        # foo.sub.sub_a depends on foo.foo_d
+        assert modules.index('foo.foo_d') < modules.index('foo.sub.sub_a')
+
+    def test_sort_mutually_exclusive(self, capsys):
+        # Test that --sort and --json are mutually exclusive
+        with pytest.raises(SystemExit) as exc_info:
+            main(['import_deps', str(FOO.pkg), '--sort', '--json'])
+
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert 'mutually exclusive' in captured.err

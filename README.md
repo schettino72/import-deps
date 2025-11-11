@@ -141,6 +141,26 @@ Circular dependencies detected:
 
 This is useful for CI/CD pipelines to enforce DAG (Directed Acyclic Graph) structure in your codebase.
 
+### Topological sort
+
+Use the `--sort` flag to output modules in topological order (dependencies before dependents):
+
+```bash
+> import_deps foo/ --sort
+foo.__init__
+foo.foo_b
+foo.foo_c
+foo.foo_a
+foo.foo_d
+foo.sub.__init__
+foo.sub.sub_a
+```
+
+The output guarantees that:
+- Imported modules appear before modules that import them
+- The order is stable (alphabetically sorted when multiple orderings are valid)
+- Useful for build systems, initialization order, or understanding module hierarchy
+
 
 ## Usage (lib)
 

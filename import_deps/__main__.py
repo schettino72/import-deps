@@ -48,6 +48,51 @@ def detect_cycles(results):
     return cycle_edges
 
 
+def topological_sort(results):
+    """Topological sort of modules (dependencies before dependents).
+    Uses Kahn's algorithm with alphabetical ordering for stability.
+    Returns list of module names in topological order.
+    """
+    # First, collect all modules
+    all_modules = set(result['module'] for result in results)
+
+    # Build graph: module -> list of modules that depend on it
+    graph = {module: [] for module in all_modules}
+    in_degree = {module: 0 for module in all_modules}
+
+    for result in results:
+        module = result['module']
+        for imp in result['imports']:
+            if imp in all_modules:  # Only consider tracked modules
+                graph[imp].append(module)
+                in_degree[module] += 1
+
+    # Find all nodes with no incoming edges (alphabetically sorted for stability)
+    queue = sorted([node for node in all_modules if in_degree.get(node, 0) == 0])
+    sorted_list = []
+
+    while queue:
+        # Pop first element (maintains alphabetical order)
+        node = queue.pop(0)
+        sorted_list.append(node)
+
+        # For each dependent of this node
+        for dependent in sorted(graph.get(node, [])):
+            in_degree[dependent] -= 1
+            if in_degree[dependent] == 0:
+                # Insert in sorted position to maintain alphabetical order
+                import bisect
+                bisect.insort(queue, dependent)
+
+    # If we couldn't sort all nodes, there's a cycle
+    if len(sorted_list) != len(all_modules):
+        # Return partial sort with remaining nodes appended alphabetically
+        remaining = sorted(all_modules - set(sorted_list))
+        sorted_list.extend(remaining)
+
+    return sorted_list
+
+
 def format_dot(results, highlight_cycles=True):
     """Format results as DOT graph for graphviz"""
     lines = ['digraph imports {']
@@ -140,12 +185,16 @@ def main(argv=sys.argv):
                         help='Output results in DOT format for graphviz')
     parser.add_argument('--check', action='store_true',
                         help='Check for circular dependencies and exit with error if found')
+    parser.add_argument('--sort', action='store_true',
+                        help='Output modules in topological sort order (dependencies first)')
     parser.add_argument('--version', action='version',
                         version='.'.join(str(i) for i in __version__))
     config = parser.parse_args(argv[1:])
 
-    if config.json and config.dot:
-        print("Error: --json and --dot are mutually exclusive", file=sys.stderr)
+    # Check for mutually exclusive flags
+    output_flags = sum([config.json, config.dot, config.sort])
+    if output_flags > 1:
+        print("Error: --json, --dot, and --sort are mutually exclusive", file=sys.stderr)
         sys.exit(1)
 
     path = pathlib.Path(config.path)
@@ -209,6 +258,10 @@ def main(argv=sys.argv):
         print(json.dumps(results, indent=2))
     elif config.dot:
         print(format_dot(results))
+    elif config.sort:
+        sorted_modules = topological_sort(results)
+        for module in sorted_modules:
+            print(module)
     else:
         # Text format
         if len(results) == 1:
