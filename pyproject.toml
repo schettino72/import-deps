@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "import_deps"
-version = "0.4.dev0"
+version = "0.4.0"
 description = "find python module imports"
 readme = "README.md"
 requires-python = ">=3.10"
