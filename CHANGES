@@ -5,7 +5,7 @@ Changes
 0.5.0 (*unreleased*)
 ====================
 
--
+- cli: support multiple paths (files and/or directories)
 
 
 0.4.0 (*2025-11-11*)

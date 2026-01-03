@@ -267,8 +267,8 @@ def format_dot(results, highlight_cycles=True):
 
 def main(argv=sys.argv):
     parser = argparse.ArgumentParser(prog='import_deps')
-    parser.add_argument('path', metavar='PATH',
-                        help='Python file or package directory to analyze')
+    parser.add_argument('path', metavar='PATH', nargs='+',
+                        help='Python file(s) or package directory(s) to analyze')
     parser.add_argument('--json', action='store_true',
                         help='Output results in JSON format')
     parser.add_argument('--dot', action='store_true',
@@ -287,39 +287,39 @@ def main(argv=sys.argv):
         print("Error: --json, --dot, and --sort are mutually exclusive", file=sys.stderr)
         sys.exit(1)
 
-    path = pathlib.Path(config.path)
+    # Collect all .py files from provided paths
+    # requested_files: files to analyze (output results for)
+    # py_files: all files for ModuleSet (includes package context for import resolution)
+    py_files = []
+    requested_files = set()
+    for p in config.path:
+        path = pathlib.Path(p)
+        if path.is_file():
+            # For files, include entire package to detect intra-package imports
+            requested_files.add(path.resolve())
+            module = PyModule(path)
+            pkg_path = module.pkg_path().resolve()
+            py_files.extend(pkg_path.glob('**/*.py'))
+        elif path.is_dir():
+            dir_files = list(path.glob('**/*.py'))
+            py_files.extend(dir_files)
+            requested_files.update(f.resolve() for f in dir_files)
+        else:
+            print(f"Error: {p} is not a valid file or directory", file=sys.stderr)
+            sys.exit(1)
 
-    # Collect data
-    if path.is_file():
-        # Single file analysis
-        module = PyModule(config.path)
-        base_path = module.pkg_path().resolve()
-        mset = ModuleSet(base_path.glob('**/*.py'))
-        imports = mset.get_imports(module, return_fqn=True)
+    mset = ModuleSet(py_files)
 
-        results = [{
-            'module': '.'.join(module.fqn),
+    results = []
+    for mod_name in sorted(mset.by_name.keys()):
+        mod = mset.by_name[mod_name]
+        if mod.path.resolve() not in requested_files:
+            continue
+        imports = mset.get_imports(mod, return_fqn=True)
+        results.append({
+            'module': mod_name,
             'imports': sorted(imports)
-        }]
-
-    elif path.is_dir():
-        # Package analysis
-        base_path = path.resolve()
-        py_files = list(base_path.glob('**/*.py'))
-        mset = ModuleSet(py_files)
-
-        results = []
-        for mod_name in sorted(mset.by_name.keys()):
-            mod = mset.by_name[mod_name]
-            imports = mset.get_imports(mod, return_fqn=True)
-            results.append({
-                'module': mod_name,
-                'imports': sorted(imports)
-            })
-
-    else:
-        print(f"Error: {config.path} is not a valid file or directory", file=sys.stderr)
-        sys.exit(1)
+        })
 
     # Check for circular dependencies
     if config.check:

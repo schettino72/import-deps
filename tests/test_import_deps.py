@@ -420,3 +420,46 @@ class Test_CLI(object):
         assert sorted_modules.index('B') < sorted_modules.index('D')
         assert sorted_modules.index('C') < sorted_modules.index('D')
         assert sorted_modules.index('E') == len(sorted_modules) - 1
+
+    def test_multiple_paths(self, capsys):
+        # Test multiple paths: directory + file
+        with pytest.raises(SystemExit) as exc_info:
+            main(['import_deps', str(FOO.pkg), str(BAR), '--json'])
+
+        assert exc_info.value.code == 0
+        captured = capsys.readouterr()
+        result = json.loads(captured.out)
+
+        # Should have foo modules + bar
+        modules = {m['module'] for m in result}
+        assert 'foo.foo_a' in modules
+        assert 'bar' in modules
+
+        # foo.foo_a imports bar
+        foo_a = next(m for m in result if m['module'] == 'foo.foo_a')
+        assert 'bar' in foo_a['imports']
+
+        # bar imports foo (the package)
+        bar = next(m for m in result if m['module'] == 'bar')
+        assert 'foo.__init__' in bar['imports']
+
+    def test_multiple_paths_files_only(self, capsys):
+        # Test multiple individual files
+        with pytest.raises(SystemExit) as exc_info:
+            main(['import_deps', str(FOO.a), str(BAR), '--json'])
+
+        assert exc_info.value.code == 0
+        captured = capsys.readouterr()
+        result = json.loads(captured.out)
+
+        # Should have exactly 2 modules
+        assert len(result) == 2
+        modules = {m['module'] for m in result}
+        assert modules == {'foo.foo_a', 'bar'}
+
+        # Cross-imports should be detected
+        foo_a = next(m for m in result if m['module'] == 'foo.foo_a')
+        assert 'bar' in foo_a['imports']
+
+        bar = next(m for m in result if m['module'] == 'bar')
+        assert 'foo.__init__' in bar['imports']
