@@ -4,10 +4,10 @@ import pathlib
 
 import pytest
 
-from import_deps import ast_imports
+from import_deps import ast_imports, ast_defined_names
 from import_deps import PyModule
 from import_deps import ModuleSet
-from import_deps.__main__ import main
+from import_deps.__main__ import main, detect_reimports
 
 
 # list of modules in sample folder used for testing
@@ -463,3 +463,78 @@ class Test_CLI(object):
 
         bar = next(m for m in result if m['module'] == 'bar')
         assert 'foo.__init__' in bar['imports']
+
+
+# Reimport detection tests
+reimport_dir = pathlib.Path(__file__).parent / 'sample-reimport'
+
+class REIMPORT:
+    pkg = reimport_dir / 'pkg'
+    init = pkg / '__init__.py'
+    a = pkg / 'module_a.py'
+    b = pkg / 'module_b.py'
+    c = pkg / 'module_c.py'
+    d = pkg / 'module_d.py'
+
+
+class Test_DefinedNames:
+    def test_ast_defined_names(self):
+        defined = ast_defined_names(REIMPORT.a)
+        assert 'foo_func' in defined
+        assert 'FooClass' in defined
+
+    def test_defined_vs_imported(self):
+        # module_b has both defined and imported names
+        defined = ast_defined_names(REIMPORT.b)
+        assert 'bar_func' in defined  # defined in module_b
+        assert 'foo_func' not in defined  # imported, not defined
+        assert 'FooClass' not in defined  # imported, not defined
+
+
+class Test_ReimportDetection:
+    def test_detect_reimports(self):
+        py_files = list(REIMPORT.pkg.glob('**/*.py'))
+        mset = ModuleSet(py_files)
+        violations = detect_reimports(mset)
+
+        # module_c imports foo_func and FooClass from module_b, but they're defined in module_a
+        assert len(violations) == 2
+
+        violation_keys = {(v['module'], v['name']) for v in violations}
+        assert ('pkg.module_c', 'foo_func') in violation_keys
+        assert ('pkg.module_c', 'FooClass') in violation_keys
+
+        # Check original source is correctly identified
+        for v in violations:
+            assert v['imported_from'] == 'pkg.module_b'
+            assert v['original_source'] == 'pkg.module_a'
+
+    def test_init_whitelist(self):
+        # module_d imports from __init__.py which re-exports - should NOT be flagged
+        py_files = list(REIMPORT.pkg.glob('**/*.py'))
+        mset = ModuleSet(py_files)
+        violations = detect_reimports(mset)
+
+        # module_d should not appear in violations
+        module_d_violations = [v for v in violations if v['module'] == 'pkg.module_d']
+        assert len(module_d_violations) == 0
+
+    def test_check_reimports_cli_fails(self, capsys):
+        # Test --check-reimports on data with violations
+        with pytest.raises(SystemExit) as exc_info:
+            main(['import_deps', str(REIMPORT.pkg), '--check-reimports'])
+
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert 'Re-imports detected' in captured.err
+        assert 'foo_func' in captured.err
+        assert 'FooClass' in captured.err
+
+    def test_check_reimports_cli_passes(self, capsys):
+        # Test --check-reimports on data without violations
+        with pytest.raises(SystemExit) as exc_info:
+            main(['import_deps', str(FOO.pkg), '--check-reimports'])
+
+        assert exc_info.value.code == 0
+        captured = capsys.readouterr()
+        assert 'No re-imports found' in captured.out

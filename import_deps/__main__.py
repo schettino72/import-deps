@@ -3,7 +3,7 @@ import json
 import pathlib
 import sys
 
-from . import __version__, PyModule, ModuleSet
+from . import __version__, PyModule, ModuleSet, ast_defined_names
 
 
 def detect_cycles(results):
@@ -46,6 +46,85 @@ def detect_cycles(results):
             dfs(module, [])
 
     return cycle_edges
+
+
+def detect_reimports(mset):
+    """Detect re-imports: importing a name from a module that re-exports it.
+
+    A re-import is when module C does `from B import foo`, but `foo` is not
+    defined in B - it was imported into B from A. The import should come
+    from A directly.
+
+    __init__.py files are whitelisted as they commonly re-export for cleaner APIs.
+
+    :param mset: ModuleSet
+    :return: list of dicts with keys: module, name, imported_from, original_source
+    """
+    # Build symbol tables for each module
+    # symbol_table[mod_fqn] = {name: 'defined' | ('imported', source_fqn)}
+    symbol_table = {}
+
+    for mod_fqn, mod in mset.by_name.items():
+        defined = ast_defined_names(mod.path)
+        imports = mset.get_imports_detailed(mod)
+
+        symbols = {}
+        for name in defined:
+            symbols[name] = 'defined'
+        for name, source_fqn in imports:
+            if name not in symbols:  # defined takes precedence
+                symbols[name] = ('imported', source_fqn)
+
+        symbol_table[mod_fqn] = symbols
+
+    # Find original source for a name (trace through re-exports)
+    def find_original(name, source_fqn, visited=None):
+        if visited is None:
+            visited = set()
+        if source_fqn in visited:
+            return source_fqn  # Cycle, just return current
+        visited.add(source_fqn)
+
+        if source_fqn not in symbol_table:
+            return source_fqn  # External module
+
+        entry = symbol_table[source_fqn].get(name)
+        if entry == 'defined':
+            return source_fqn
+        elif entry and entry[0] == 'imported':
+            return find_original(name, entry[1], visited)
+        else:
+            return source_fqn  # Name not found, assume defined
+
+    # Check each module for re-imports
+    violations = []
+    for mod_fqn, mod in mset.by_name.items():
+        imports = mset.get_imports_detailed(mod)
+
+        for name, source_fqn in imports:
+            # Skip if importing from __init__.py (whitelisted)
+            if source_fqn.endswith('.__init__'):
+                continue
+
+            if source_fqn not in symbol_table:
+                continue  # External module
+
+            entry = symbol_table[source_fqn].get(name)
+            if entry and entry != 'defined' and entry[0] == 'imported':
+                # This is a re-import
+                original = find_original(name, entry[1])
+                # Clean up __init__ suffix for display
+                display_original = original
+                if display_original.endswith('.__init__'):
+                    display_original = display_original[:-9]
+                violations.append({
+                    'module': mod_fqn,
+                    'name': name,
+                    'imported_from': source_fqn,
+                    'original_source': display_original
+                })
+
+    return violations
 
 
 def topological_sort(results):
@@ -275,6 +354,8 @@ def main(argv=sys.argv):
                         help='Output results in DOT format for graphviz')
     parser.add_argument('--check', action='store_true',
                         help='Check for circular dependencies and exit with error if found')
+    parser.add_argument('--check-reimports', action='store_true',
+                        help='Check for re-imports (importing from re-exporting module instead of original)')
     parser.add_argument('--sort', action='store_true',
                         help='Output modules in topological sort order (dependencies first)')
     parser.add_argument('--version', action='version',
@@ -341,6 +422,19 @@ def main(argv=sys.argv):
             sys.exit(1)
         else:
             print("No circular dependencies found.")
+            sys.exit(0)
+
+    # Check for re-imports
+    if config.check_reimports:
+        violations = detect_reimports(mset)
+        if violations:
+            print("Re-imports detected:", file=sys.stderr)
+            for v in sorted(violations, key=lambda x: (x['module'], x['name'])):
+                print(f"  {v['module']}: '{v['name']}' imported from {v['imported_from']}", file=sys.stderr)
+                print(f"    -> should import from {v['original_source']}", file=sys.stderr)
+            sys.exit(1)
+        else:
+            print("No re-imports found.")
             sys.exit(0)
 
     # Output results

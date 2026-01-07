@@ -24,6 +24,44 @@ class _ImportsFinder(ast.NodeVisitor):
                             for n in node.names)
         ast.NodeVisitor.generic_visit(self, node)
 
+
+class _DefinedNamesFinder(ast.NodeVisitor):
+    """find all names defined at module level (not imported)
+    :ivar defined: (set - str) names defined in this module
+    """
+    def __init__(self):
+        ast.NodeVisitor.__init__(self)
+        self.defined = set()
+        self._depth = 0
+
+    def visit_FunctionDef(self, node):
+        if self._depth == 0:
+            self.defined.add(node.name)
+        # Don't recurse into function bodies
+
+    def visit_AsyncFunctionDef(self, node):
+        if self._depth == 0:
+            self.defined.add(node.name)
+
+    def visit_ClassDef(self, node):
+        if self._depth == 0:
+            self.defined.add(node.name)
+        # Don't recurse into class bodies
+
+    def visit_Assign(self, node):
+        if self._depth == 0:
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    self.defined.add(target.id)
+                elif isinstance(target, ast.Tuple):
+                    for elt in target.elts:
+                        if isinstance(elt, ast.Name):
+                            self.defined.add(elt.id)
+
+    def visit_AnnAssign(self, node):
+        if self._depth == 0 and isinstance(node.target, ast.Name):
+            self.defined.add(node.target.id)
+
 def ast_imports(file_path):
     """get list of import from python module
     :return: (list - tuple) (module, name, asname, level)
@@ -34,6 +72,18 @@ def ast_imports(file_path):
     finder = _ImportsFinder()
     finder.visit(mod_ast)
     return finder.imports
+
+
+def ast_defined_names(file_path):
+    """get set of names defined at module level (not imported)
+    :return: (set - str) names defined in this module
+    """
+    with pathlib.Path(file_path).open('r') as fp:
+        text = fp.read()
+    mod_ast = ast.parse(text, str(file_path))
+    finder = _DefinedNamesFinder()
+    finder.visit(mod_ast)
+    return finder.defined
 
 
 ##########
@@ -158,3 +208,33 @@ class ModuleSet(object):
     def mod_imports(self, mod_fqn):
         mod = self.by_name[mod_fqn]
         return self.get_imports(mod, return_fqn=True)
+
+    def get_imports_detailed(self, module):
+        """return list of (imported_name, source_module_fqn) for imports in module
+        Only includes imports from modules within this ModuleSet.
+        :param module: PyModule
+        :return: list of (name, source_fqn) tuples
+        """
+        result = []
+        raw_imports = ast_imports(module.path)
+        for import_entry in raw_imports:
+            from_module, name, asname, level = import_entry
+
+            # Handle 'import X' (no 'from')
+            if from_module is None:
+                continue  # These don't import specific names
+
+            # Resolve the source module
+            if level:
+                # Relative import
+                full = from_module if from_module else ''
+                intra = '.'.join(module.fqn[:-level] + ([full] if full else []))
+            else:
+                intra = from_module
+
+            imported_mod = self._get_imported_module(intra)
+            if imported_mod:
+                source_fqn = '.'.join(imported_mod.fqn)
+                result.append((name, source_fqn))
+
+        return result

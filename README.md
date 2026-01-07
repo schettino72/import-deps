@@ -141,6 +141,41 @@ Circular dependencies detected:
 
 This is useful for CI/CD pipelines to enforce DAG (Directed Acyclic Graph) structure in your codebase.
 
+### Check for re-imports
+
+Use the `--check-reimports` flag to detect re-imports. A re-import occurs when you import a name from a module that itself imported it from somewhere else, rather than importing from the original source.
+
+```python
+# pkg/module_a.py - defines foo_func
+def foo_func():
+    pass
+
+# pkg/module_b.py - re-exports foo_func
+from .module_a import foo_func  # re-export
+
+# pkg/module_c.py - BAD: imports from module_b instead of module_a
+from .module_b import foo_func  # re-import!
+```
+
+```bash
+> import_deps pkg/ --check-reimports
+Re-imports detected:
+  pkg.module_c: 'foo_func' imported from pkg.module_b
+    -> should import from pkg.module_a
+# (exits with code 1)
+
+# If no re-imports:
+> import_deps pkg/ --check-reimports
+No re-imports found.
+```
+
+**Note:** `__init__.py` files are whitelisted since they commonly re-export symbols to provide a cleaner public API.
+
+This is useful for:
+- Enforcing clean import hygiene in your codebase
+- Making dependencies explicit and traceable
+- Avoiding confusion about where symbols are actually defined
+
 ### Topological sort
 
 Use the `--sort` flag to output modules in topological order (dependencies before dependents):

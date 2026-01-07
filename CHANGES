@@ -6,6 +6,7 @@ Changes
 ====================
 
 - cli: support multiple paths (files and/or directories)
+- cli: add --check-reimports flag to detect re-imports (importing from a module that re-exports instead of the original source)
 
 
 0.4.0 (*2025-11-11*)
