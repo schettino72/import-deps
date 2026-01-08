@@ -7,7 +7,7 @@ import pytest
 from import_deps import ast_imports, ast_defined_names
 from import_deps import PyModule
 from import_deps import ModuleSet
-from import_deps.__main__ import main, detect_reimports
+from import_deps.__main__ import main, detect_reimports, get_all_imports
 
 
 # list of modules in sample folder used for testing
@@ -538,3 +538,75 @@ class Test_ReimportDetection:
         assert exc_info.value.code == 0
         captured = capsys.readouterr()
         assert 'No re-imports found' in captured.out
+
+
+class Test_AllImports:
+    def test_get_all_imports_simple(self):
+        # A -> B -> C (A imports B, B imports C)
+        results = [
+            {'module': 'A', 'imports': ['B']},
+            {'module': 'B', 'imports': ['C']},
+            {'module': 'C', 'imports': []},
+        ]
+        all_imports = get_all_imports(results)
+
+        assert all_imports['A'] == {'B', 'C'}
+        assert all_imports['B'] == {'C'}
+        assert all_imports['C'] == set()
+
+    def test_get_all_imports_diamond(self):
+        # A -> B, A -> C, B -> D, C -> D (diamond pattern)
+        results = [
+            {'module': 'A', 'imports': ['B', 'C']},
+            {'module': 'B', 'imports': ['D']},
+            {'module': 'C', 'imports': ['D']},
+            {'module': 'D', 'imports': []},
+        ]
+        all_imports = get_all_imports(results)
+
+        assert all_imports['A'] == {'B', 'C', 'D'}
+        assert all_imports['B'] == {'D'}
+        assert all_imports['C'] == {'D'}
+        assert all_imports['D'] == set()
+
+    def test_get_all_imports_with_cycle(self):
+        # A -> B -> C -> A (cycle)
+        results = [
+            {'module': 'A', 'imports': ['B']},
+            {'module': 'B', 'imports': ['C']},
+            {'module': 'C', 'imports': ['A']},
+        ]
+        all_imports = get_all_imports(results)
+
+        # Each module should have all others as transitive imports
+        assert all_imports['A'] == {'B', 'C'}
+        assert all_imports['B'] == {'A', 'C'}
+        assert all_imports['C'] == {'A', 'B'}
+
+    def test_cli_all_imports_requires_json(self, capsys):
+        with pytest.raises(SystemExit) as exc_info:
+            main(['import_deps', str(FOO.pkg), '--all-imports'])
+
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert '--all-imports requires --json' in captured.err
+
+    def test_cli_all_imports_json(self, capsys):
+        with pytest.raises(SystemExit) as exc_info:
+            main(['import_deps', str(FOO.pkg), '--json', '--all-imports'])
+
+        assert exc_info.value.code == 0
+        captured = capsys.readouterr()
+        result = json.loads(captured.out)
+
+        # All entries should have both imports and all_imports
+        for entry in result:
+            assert 'imports' in entry
+            assert 'all_imports' in entry
+            # all_imports should be a superset of imports
+            assert set(entry['imports']).issubset(set(entry['all_imports']))
+
+        # foo.sub.sub_a imports foo.foo_d which imports foo.foo_c which imports foo.__init__
+        sub_a = next(m for m in result if m['module'] == 'foo.sub.sub_a')
+        assert sub_a['imports'] == ['foo.foo_d']
+        assert set(sub_a['all_imports']) == {'foo.foo_d', 'foo.foo_c', 'foo.__init__'}

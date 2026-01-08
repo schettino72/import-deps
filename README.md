@@ -95,6 +95,31 @@ For package analysis with JSON:
 ]
 ```
 
+### Transitive imports
+
+Use `--all-imports` with `--json` to include all transitive dependencies (not just direct imports):
+
+```bash
+> import_deps foo/ --json --all-imports
+[
+  {
+    "module": "foo.foo_a",
+    "imports": [
+      "foo.foo_b",
+      "foo.foo_c"
+    ],
+    "all_imports": [
+      "foo.__init__",
+      "foo.foo_b",
+      "foo.foo_c"
+    ]
+  },
+  ...
+]
+```
+
+The `all_imports` field contains all modules that a module depends on, directly or indirectly. This is useful for understanding the full dependency tree of a module.
+
 ### DOT output for visualization
 
 Use the `--dot` flag to generate a dependency graph in DOT format for graphviz:

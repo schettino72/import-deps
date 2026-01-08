@@ -6,6 +6,27 @@ import sys
 from . import __version__, PyModule, ModuleSet, ast_defined_names
 
 
+def get_all_imports(results):
+    """Calculate transitive imports for all modules.
+    Returns dict of module -> set of all imports (direct + transitive)
+    """
+    graph = {r['module']: set(r['imports']) for r in results}
+    all_imports = {}
+
+    for module in graph:
+        visited = set()
+        queue = list(graph.get(module, []))
+        while queue:
+            dep = queue.pop(0)
+            if dep not in visited:
+                visited.add(dep)
+                queue.extend(graph.get(dep, []))
+        visited.discard(module)  # Exclude self
+        all_imports[module] = visited
+
+    return all_imports
+
+
 def detect_cycles(results):
     """Detect circular dependencies using DFS
     Returns set of edges (module, import) that create cycles
@@ -358,6 +379,8 @@ def main(argv=sys.argv):
                         help='Check for re-imports (importing from re-exporting module instead of original)')
     parser.add_argument('--sort', action='store_true',
                         help='Output modules in topological sort order (dependencies first)')
+    parser.add_argument('--all-imports', action='store_true',
+                        help='Include transitive imports in JSON output (requires --json)')
     parser.add_argument('--version', action='version',
                         version='.'.join(str(i) for i in __version__))
     config = parser.parse_args(argv[1:])
@@ -366,6 +389,11 @@ def main(argv=sys.argv):
     output_flags = sum([config.json, config.dot, config.sort])
     if output_flags > 1:
         print("Error: --json, --dot, and --sort are mutually exclusive", file=sys.stderr)
+        sys.exit(1)
+
+    # --all-imports requires --json
+    if config.all_imports and not config.json:
+        print("Error: --all-imports requires --json", file=sys.stderr)
         sys.exit(1)
 
     # Collect all .py files from provided paths
@@ -401,6 +429,12 @@ def main(argv=sys.argv):
             'module': mod_name,
             'imports': sorted(imports)
         })
+
+    # Add transitive imports if requested
+    if config.all_imports:
+        all_imports_map = get_all_imports(results)
+        for result in results:
+            result['all_imports'] = sorted(all_imports_map.get(result['module'], set()))
 
     # Check for circular dependencies
     if config.check:
