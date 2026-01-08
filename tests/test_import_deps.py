@@ -393,7 +393,7 @@ class Test_CLI(object):
         # C: level=3, depth=2
         # D: level=4, depth=1 (sink)
         # E: level=3, depth=1 (sink)
-        from import_deps.__main__ import topological_sort
+        from import_deps.graph import topological_sort
 
         results = [
             {'module': 'A', 'imports': ['B']},
@@ -403,24 +403,24 @@ class Test_CLI(object):
             {'module': 'E', 'imports': []},
         ]
 
-        sorted_modules, levels, depths = topological_sort(results)
+        sort_result = topological_sort(results)
 
         # Verify levels (distance from sources)
-        assert levels == {'A': 1, 'B': 2, 'C': 3, 'D': 4, 'E': 3}
+        assert sort_result.levels == {'A': 1, 'B': 2, 'C': 3, 'D': 4, 'E': 3}
 
         # Verify depths (distance from sinks)
-        assert depths == {'D': 1, 'E': 1, 'C': 2, 'B': 3, 'A': 4}
+        assert sort_result.depths == {'D': 1, 'E': 1, 'C': 2, 'B': 3, 'A': 4}
 
         # Topological order sorted by (level DESC, depth ASC)
         # D has highest level (4), so D first
         # Then E (level=3, depth=1) before C (level=3, depth=2) due to lower depth
-        assert sorted_modules == ['D', 'E', 'C', 'B', 'A']
+        assert sort_result.modules == ['D', 'E', 'C', 'B', 'A']
 
     def test_sort_with_circular_dependencies(self):
         # Test that circular dependencies are handled gracefully
         # Structure: A -> C -> B -> A (circular); D -> B; E (standalone)
         # (A imports C, C imports B, B imports A, D imports B, E imports nothing)
-        from import_deps.__main__ import topological_sort
+        from import_deps.graph import topological_sort
 
         results = [
             {'module': 'A', 'imports': ['C']},  # A imports C
@@ -430,33 +430,33 @@ class Test_CLI(object):
             {'module': 'E', 'imports': []},     # E imports nothing (isolated)
         ]
 
-        sorted_modules, levels, depths = topological_sort(results)
+        sort_result = topological_sort(results)
 
         # All modules should be present
-        assert len(sorted_modules) == 5
-        assert set(sorted_modules) == {'A', 'B', 'C', 'D', 'E'}
+        assert len(sort_result.modules) == 5
+        assert set(sort_result.modules) == {'A', 'B', 'C', 'D', 'E'}
 
         # E is processed first (level=1, depth=1, no dependencies)
         # Cycle nodes (A, B, C) and D (depends on cycle) are in remaining, sorted alphabetically
-        assert sorted_modules[0] == 'E'
-        assert sorted_modules.index('A') < sorted_modules.index('D')
-        assert sorted_modules.index('B') < sorted_modules.index('D')
-        assert sorted_modules.index('C') < sorted_modules.index('D')
+        assert sort_result.modules[0] == 'E'
+        assert sort_result.modules.index('A') < sort_result.modules.index('D')
+        assert sort_result.modules.index('B') < sort_result.modules.index('D')
+        assert sort_result.modules.index('C') < sort_result.modules.index('D')
 
         # Cycle nodes have level=-1 and depth=-1
-        assert levels['A'] == -1
-        assert levels['B'] == -1
-        assert levels['C'] == -1
-        assert depths['A'] == -1
-        assert depths['B'] == -1
-        assert depths['C'] == -1
+        assert sort_result.levels['A'] == -1
+        assert sort_result.levels['B'] == -1
+        assert sort_result.levels['C'] == -1
+        assert sort_result.depths['A'] == -1
+        assert sort_result.depths['B'] == -1
+        assert sort_result.depths['C'] == -1
 
         # D: source (nothing imports D) -> level=1, imports cycle -> depth=2
         # E: source and sink (isolated) -> level=1, depth=1
-        assert levels['D'] == 1
-        assert depths['D'] == 2
-        assert levels['E'] == 1
-        assert depths['E'] == 1
+        assert sort_result.levels['D'] == 1
+        assert sort_result.depths['D'] == 2
+        assert sort_result.levels['E'] == 1
+        assert sort_result.depths['E'] == 1
 
     def test_multiple_paths(self, capsys):
         # Test multiple paths: directory + file

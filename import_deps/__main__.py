@@ -284,10 +284,10 @@ def main(argv=sys.argv):
     elif config.dot:
         print(format_dot(results))
     elif config.sort:
-        sorted_modules, levels, depths = topological_sort(results)
-        for module in sorted_modules:
+        sort_result = topological_sort(results)
+        for module in sort_result.modules:
             if config.verbose:
-                print(f"{module}\t{levels[module]}\t{depths[module]}")
+                print(f"{module}\t{sort_result.levels[module]}\t{sort_result.depths[module]}")
             else:
                 print(module)
     else:

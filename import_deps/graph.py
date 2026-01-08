@@ -1,6 +1,6 @@
 """Graph algorithms for dependency analysis."""
 
-from typing import TypedDict
+from typing import NamedTuple, TypedDict
 
 
 class ModuleResult(TypedDict, total=False):
@@ -14,6 +14,19 @@ class ModuleResult(TypedDict, total=False):
     module: str
     imports: list[str]
     all_imports: list[str]  # optional, added by --all-imports
+
+
+class SortResult(NamedTuple):
+    """Result of topological sort.
+
+    Attributes:
+        modules: Module names in topological order
+        levels: Dict of module -> level (distance from sources)
+        depths: Dict of module -> depth (distance from sinks)
+    """
+    modules: list[str]
+    levels: dict[str, int]
+    depths: dict[str, int]
 
 
 def get_all_imports(results: list[ModuleResult]) -> dict[str, set[str]]:
@@ -75,7 +88,7 @@ def detect_cycles(results: list[ModuleResult]) -> set[tuple[str, str]]:
     return cycle_edges
 
 
-def topological_sort(results: list[ModuleResult]) -> tuple[list[str], dict[str, int], dict[str, int]]:
+def topological_sort(results: list[ModuleResult]) -> SortResult:
     """Topological sort of modules with lexicographic ranking.
 
     Uses Kahn's algorithm with two ranking metrics:
@@ -89,12 +102,6 @@ def topological_sort(results: list[ModuleResult]) -> tuple[list[str], dict[str, 
     Handles circular dependencies gracefully:
     - Nodes in cycles get level=-1 and depth=-1
     - Nodes that depend on cycles are processed normally
-
-    Returns:
-        Tuple of (sorted_list, levels, depths) where:
-        - sorted_list: module names in topological order
-        - levels: dict of module -> level (distance from sources)
-        - depths: dict of module -> depth (distance from sinks)
     """
     # Collect all modules
     all_modules = set(result['module'] for result in results)
@@ -219,4 +226,4 @@ def topological_sort(results: list[ModuleResult]) -> tuple[list[str], dict[str, 
     if remaining:
         sorted_list.extend(sorted(remaining))
 
-    return sorted_list, levels, depths
+    return SortResult(modules=sorted_list, levels=levels, depths=depths)
