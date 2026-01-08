@@ -234,6 +234,7 @@ def main(argv=sys.argv):
         imports = mset.get_imports(mod, return_fqn=True)
         results.append({
             'module': mod_name,
+            'filepath': str(mod.path),
             'imports': sorted(imports)
         })
 

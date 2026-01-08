@@ -8,10 +8,12 @@ class ModuleResult(TypedDict, total=False):
 
     Attributes:
         module: Fully qualified module name (e.g., "foo.bar.baz")
+        filepath: Path to the module file
         imports: List of direct imports as fully qualified names
         all_imports: List of all transitive imports (only present with --all-imports)
     """
     module: str
+    filepath: str
     imports: list[str]
     all_imports: list[str]  # optional, added by --all-imports
 
@@ -21,10 +23,12 @@ class SortResult(NamedTuple):
 
     Attributes:
         modules: Module names in topological order
+        filepaths: Dict of module -> filepath
         levels: Dict of module -> level (distance from sources)
         depths: Dict of module -> depth (distance from sinks)
     """
     modules: list[str]
+    filepaths: dict[str, str]
     levels: dict[str, int]
     depths: dict[str, int]
 
@@ -103,8 +107,9 @@ def topological_sort(results: list[ModuleResult]) -> SortResult:
     - Nodes in cycles get level=-1 and depth=-1
     - Nodes that depend on cycles are processed normally
     """
-    # Collect all modules
+    # Collect all modules and filepaths
     all_modules = set(result['module'] for result in results)
+    filepaths = {r['module']: r.get('filepath', '') for r in results}
 
     # Build dependencies: module -> list of modules it imports (its dependencies)
     dependencies = {module: [] for module in all_modules}
@@ -226,4 +231,4 @@ def topological_sort(results: list[ModuleResult]) -> SortResult:
     if remaining:
         sorted_list.extend(sorted(remaining))
 
-    return SortResult(modules=sorted_list, levels=levels, depths=depths)
+    return SortResult(modules=sorted_list, filepaths=filepaths, levels=levels, depths=depths)
