@@ -347,18 +347,30 @@ class Test_CLI(object):
         assert 'foo.sub.sub_a' in modules
 
         # Verify topological order: dependencies come before dependents
-        # foo.foo_a imports foo.foo_b and foo.foo_c, so they come before foo.foo_a
         assert modules.index('foo.foo_b') < modules.index('foo.foo_a')
         assert modules.index('foo.foo_c') < modules.index('foo.foo_a')
-
-        # foo.foo_c imports foo.__init__, so foo.__init__ comes before foo.foo_c
         assert modules.index('foo.__init__') < modules.index('foo.foo_c')
-
-        # foo.foo_d imports foo.foo_c, so foo.foo_c comes before foo.foo_d
         assert modules.index('foo.foo_c') < modules.index('foo.foo_d')
-
-        # foo.sub.sub_a imports foo.foo_d, so foo.foo_d comes before foo.sub.sub_a
         assert modules.index('foo.foo_d') < modules.index('foo.sub.sub_a')
+
+    def test_sort_verbose(self, capsys):
+        # Test --sort -v shows level and depth columns
+        with pytest.raises(SystemExit) as exc_info:
+            main(['import_deps', str(FOO.pkg), '--sort', '-v'])
+
+        assert exc_info.value.code == 0
+        captured = capsys.readouterr()
+        lines = captured.out.strip().split('\n')
+
+        # Parse tab-separated output (module\tlevel\tdepth)
+        modules = [line.split('\t')[0] for line in lines]
+        levels = {line.split('\t')[0]: int(line.split('\t')[1]) for line in lines}
+        depths = {line.split('\t')[0]: int(line.split('\t')[2]) for line in lines}
+
+        # Verify levels and depths are present and reasonable
+        assert all(isinstance(v, int) for v in levels.values())
+        assert all(isinstance(v, int) for v in depths.values())
+        assert len(modules) == 7
 
     def test_sort_mutually_exclusive(self, capsys):
         # Test that --sort and --json are mutually exclusive
@@ -370,10 +382,17 @@ class Test_CLI(object):
         assert 'mutually exclusive' in captured.err
 
     def test_sort_rank_based_ordering(self):
-        # Test that rank-based ordering works correctly
+        # Test that lexicographic ranking works correctly
         # Structure: A -> B -> C -> D; B -> E (A imports B, B imports C, etc.)
-        # Ranks: D=1, E=1, C=2, B=3, A=4
-        # Expected order: D, E, C, B, A (topological: dependencies first, higher rank first when available)
+        #
+        # level = distance from sources (nodes not imported by anyone)
+        # depth = distance from sinks (nodes that import nothing)
+        #
+        # A: level=1 (source), depth=4
+        # B: level=2, depth=3
+        # C: level=3, depth=2
+        # D: level=4, depth=1 (sink)
+        # E: level=3, depth=1 (sink)
         from import_deps.__main__ import topological_sort
 
         results = [
@@ -384,13 +403,17 @@ class Test_CLI(object):
             {'module': 'E', 'imports': []},
         ]
 
-        sorted_modules = topological_sort(results)
+        sorted_modules, levels, depths = topological_sort(results)
 
-        # Expected order: D, E, C, B, A
-        # D and E are roots (rank 1), D comes before E alphabetically
-        # C comes next (rank 2, depends on D)
-        # B comes next (rank 3, depends on C and E)
-        # A comes last (rank 4, depends on B)
+        # Verify levels (distance from sources)
+        assert levels == {'A': 1, 'B': 2, 'C': 3, 'D': 4, 'E': 3}
+
+        # Verify depths (distance from sinks)
+        assert depths == {'D': 1, 'E': 1, 'C': 2, 'B': 3, 'A': 4}
+
+        # Topological order sorted by (level DESC, depth ASC)
+        # D has highest level (4), so D first
+        # Then E (level=3, depth=1) before C (level=3, depth=2) due to lower depth
         assert sorted_modules == ['D', 'E', 'C', 'B', 'A']
 
     def test_sort_with_circular_dependencies(self):
@@ -407,19 +430,33 @@ class Test_CLI(object):
             {'module': 'E', 'imports': []},     # E imports nothing (isolated)
         ]
 
-        sorted_modules = topological_sort(results)
+        sorted_modules, levels, depths = topological_sort(results)
 
         # All modules should be present
         assert len(sorted_modules) == 5
         assert set(sorted_modules) == {'A', 'B', 'C', 'D', 'E'}
 
-        # Cycle nodes (A, B, C) come first (sorted alphabetically), then D, then isolated E
-        # D imports B which is in cycle, so D comes after cycle nodes
-        # E is isolated, so it comes last
+        # E is processed first (level=1, depth=1, no dependencies)
+        # Cycle nodes (A, B, C) and D (depends on cycle) are in remaining, sorted alphabetically
+        assert sorted_modules[0] == 'E'
         assert sorted_modules.index('A') < sorted_modules.index('D')
         assert sorted_modules.index('B') < sorted_modules.index('D')
         assert sorted_modules.index('C') < sorted_modules.index('D')
-        assert sorted_modules.index('E') == len(sorted_modules) - 1
+
+        # Cycle nodes have level=-1 and depth=-1
+        assert levels['A'] == -1
+        assert levels['B'] == -1
+        assert levels['C'] == -1
+        assert depths['A'] == -1
+        assert depths['B'] == -1
+        assert depths['C'] == -1
+
+        # D: source (nothing imports D) -> level=1, imports cycle -> depth=2
+        # E: source and sink (isolated) -> level=1, depth=1
+        assert levels['D'] == 1
+        assert depths['D'] == 2
+        assert levels['E'] == 1
+        assert depths['E'] == 1
 
     def test_multiple_paths(self, capsys):
         # Test multiple paths: directory + file

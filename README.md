@@ -209,47 +209,58 @@ Use the `--sort` flag to output modules in topological order (dependencies befor
 > import_deps foo/ --sort
 foo.__init__
 foo.foo_c
+bar
 foo.foo_b
 foo.foo_d
+foo.sub.__init__
 foo.foo_a
 foo.sub.sub_a
-foo.sub.__init__
 ```
 
-The output guarantees that:
-- Dependencies always appear before modules that import them
-- When multiple modules become available, those with higher rank are prioritized
-- Rank is defined as the longest path from any leaf module (module that imports but isn't imported)
-- When multiple modules have the same rank, FIFO order is maintained
-- Circular dependencies are handled gracefully (see below)
-- Isolated modules (no dependencies, no dependents) appear last
-- Useful for initialization order, build systems, or understanding module hierarchy
+Add `-v/--verbose` to show level and depth rankings:
 
-For example, if you have `A -> B -> C -> D` and `B -> E` (where `A -> B` means "A imports B"):
-- Ranks: A=1 (leaf), B=2, C=3, E=3, D=4
-- Output: `D, E, C, B, A`
-- D comes first (rank 4, highest)
-- E comes before C (both rank 3, FIFO order)
-- Then B and A in dependency order
+```bash
+> import_deps foo/ --sort -v
+foo.__init__	4	1
+foo.foo_c	3	2
+bar	2	2
+foo.foo_b	2	3
+foo.foo_d	2	3
+foo.sub.__init__	1	1
+foo.foo_a	1	4
+foo.sub.sub_a	1	4
+```
+
+The verbose output is tab-separated: `module\tlevel\tdepth`
+
+**Terminology:**
+- **Sources**: modules not imported by anyone (entry points)
+- **Sinks**: modules that import nothing (leaf dependencies)
+- **Level**: distance from sources (reverse topological level)
+- **Depth**: distance from sinks (longest dependency chain)
+
+**Ordering:**
+- Sorted by level DESC (deep dependencies first), then depth ASC (simpler modules first), then name
+- Dependencies always appear before modules that import them
+- Circular dependencies are handled gracefully (level=-1, depth=-1)
 
 #### Handling circular dependencies
 
 When circular dependencies exist, the sort handles them gracefully:
 ```bash
 # If you have: A -> C -> B -> A (circular); D -> B; E (isolated)
-# (where A imports C, C imports B, B imports A, D imports B, E imports nothing)
-> import_deps circular_package/ --sort
-A
-B
-C
-D
-E
+> import_deps circular_package/ --sort -v
+E	1	1
+A	-1	-1
+B	-1	-1
+C	-1	-1
+D	1	2
 ```
 
 The ordering is:
-1. A, B, C first (nodes in the cycle, sorted alphabetically)
-2. D next (imports B which is in cycle, so comes after cycle nodes)
-3. E last (isolated node with no connections)
+1. A, B, C first (nodes in the cycle, level=-1, depth=-1)
+2. D next (source with level=1, imports B which is in cycle)
+3. E last (isolated node with level=1, depth=1)
 
 
 ## Usage (lib)

@@ -149,17 +149,24 @@ def detect_reimports(mset):
 
 
 def topological_sort(results):
-    """Topological sort of modules (dependencies before dependents).
-    Uses Kahn's algorithm with rank-based ordering for stability.
-    Rank is defined as the longest path from any leaf node (module that imports but isn't imported).
-    When multiple nodes become available, nodes with higher rank are output first.
+    """Topological sort of modules with lexicographic ranking.
+
+    Uses Kahn's algorithm with two ranking metrics:
+    - level: reverse topological level (distance from sources/entry points)
+    - depth: topological level (distance from sinks/leaf dependencies)
+
+    Terminology:
+    - Sources: nodes not imported by anyone (entry points)
+    - Sinks: nodes that import nothing (leaf dependencies)
 
     Handles circular dependencies gracefully:
-    - Nodes actually in cycles are identified and processed last
-    - Nodes that depend on cycles (but aren't in them) are processed normally
-    - Isolated nodes (no dependencies, no dependents) are placed last
+    - Nodes in cycles get level=-1 and depth=-1
+    - Nodes that depend on cycles are processed normally
 
-    Returns list of module names in topological order (dependencies before dependents).
+    Returns (sorted_list, levels, depths):
+    - sorted_list: module names in topological order
+    - levels: dict of module -> level (distance from sources)
+    - depths: dict of module -> depth (distance from sinks)
     """
     # Collect all modules
     all_modules = set(result['module'] for result in results)
@@ -172,115 +179,119 @@ def topological_sort(results):
 
     # Build reverse graph: module -> list of modules that import it (its dependents)
     dependents = {module: [] for module in all_modules}
-
     for module in all_modules:
         for dep in dependencies[module]:
             dependents[dep].append(module)
 
-    # Calculate rank for each node (longest path from any leaf node)
-    # Leaf nodes are those that have no dependents (nothing imports them)
-    # Detect cycles using DFS with recursion stack
-    rank = {}
+    # Detect cycles first using DFS
     in_cycle = set()
 
-    def calculate_rank(node, visiting=None, rec_path=None):
-        if visiting is None:
-            visiting = set()
-        if rec_path is None:
-            rec_path = []
-
-        if node in rank:
-            return rank[node]
-
+    def detect_cycles(node, visiting, rec_path):
         if node in visiting:
-            # Cycle detected - mark all nodes in the cycle path
             cycle_start = rec_path.index(node)
             for i in range(cycle_start, len(rec_path)):
                 in_cycle.add(rec_path[i])
             in_cycle.add(node)
-            return -1  # Special value for cycles
-
+            return
+        if node in in_cycle:
+            return
         visiting.add(node)
         rec_path.append(node)
-        deps = dependents[node]  # Use dependents (who imports this node)
-
-        if not deps:
-            rank[node] = 1  # Leaf nodes (not imported by anyone) have rank 1
-        else:
-            dep_ranks = []
-            for dep in deps:
-                dep_rank = calculate_rank(dep, visiting, rec_path)
-                if dep_rank == -1:
-                    # Dependent is in cycle
-                    pass
-                else:
-                    dep_ranks.append(dep_rank)
-
-            # Only mark as cycle if this node is actually in the cycle
-            if node in in_cycle:
-                rank[node] = -1
-            elif dep_ranks:
-                rank[node] = max(dep_ranks) + 1
-            else:
-                # All dependents are in cycles, but this node isn't
-                rank[node] = 2
-
+        for dep in dependencies[node]:
+            detect_cycles(dep, visiting, rec_path)
         rec_path.pop()
         visiting.remove(node)
-        return rank[node]
 
     for module in all_modules:
-        if module not in rank:
-            calculate_rank(module)
+        detect_cycles(module, set(), [])
 
-    # Topological sort: start with roots (nodes with no dependencies)
-    # in_degree tracks how many unprocessed dependencies each node has
+    # Calculate depth: distance from sinks (nodes with no dependencies)
+    # Sinks have depth 1, increases toward sources
+    depths = {}
+
+    def calculate_depth(node):
+        if node in depths:
+            return depths[node]
+        if node in in_cycle:
+            depths[node] = -1
+            return -1
+
+        deps = dependencies[node]
+        if not deps:
+            depths[node] = 1  # Sink/leaf node
+        else:
+            dep_depths = [calculate_depth(d) for d in deps if d not in in_cycle]
+            if dep_depths:
+                depths[node] = max(dep_depths) + 1
+            else:
+                depths[node] = 2  # All deps in cycle
+        return depths[node]
+
+    for module in all_modules:
+        calculate_depth(module)
+
+    # Calculate level: distance from sources (nodes not imported by anyone)
+    # Sources have level 1, increases toward sinks
+    levels = {}
+
+    def calculate_level(node):
+        if node in levels:
+            return levels[node]
+        if node in in_cycle:
+            levels[node] = -1
+            return -1
+
+        deps = dependents[node]  # Who imports this node
+        if not deps:
+            levels[node] = 1  # Source/root node
+        else:
+            dep_levels = [calculate_level(d) for d in deps if d not in in_cycle]
+            if dep_levels:
+                levels[node] = max(dep_levels) + 1
+            else:
+                levels[node] = 2  # All dependents in cycle
+        return levels[node]
+
+    for module in all_modules:
+        calculate_level(module)
+
+    # Topological sort using Kahn's algorithm
     in_degree = {module: len(dependencies[module]) for module in all_modules}
 
-    # Separate cycle nodes and isolated nodes from regular nodes
-    cycle_nodes = {node for node in all_modules if rank[node] == -1}
-    isolated_nodes = {node for node in all_modules
-                      if len(dependencies[node]) == 0 and len(dependents[node]) == 0}
+    cycle_nodes = {node for node in all_modules if node in in_cycle}
 
     non_cycle_roots = [node for node in all_modules
                        if in_degree[node] == 0
-                       and node not in cycle_nodes
-                       and node not in isolated_nodes]
+                       and node not in cycle_nodes]
 
-    # Initial queue: non-cycle, non-isolated roots, sorted by rank DESC then name ASC
-    queue = sorted(non_cycle_roots, key=lambda x: (-rank[x], x))
+    # Sort by level DESC (deep dependencies first), depth ASC (simpler first), then name ASC
+    queue = sorted(non_cycle_roots, key=lambda x: (-levels[x], depths[x], x))
     sorted_list = []
 
     while queue:
         node = queue.pop(0)
         sorted_list.append(node)
 
-        # Process all dependents of this node (nodes that import this node)
         for dependent in dependents[node]:
-            if dependent not in cycle_nodes and dependent not in isolated_nodes:
+            if dependent not in cycle_nodes:
                 in_degree[dependent] -= 1
                 if in_degree[dependent] == 0:
-                    # Insert maintaining rank order (higher rank first)
-                    # Within same rank, maintain FIFO order
-                    dep_rank = rank[dependent]
+                    # Insert maintaining sort order
+                    key = (-levels[dependent], depths[dependent], dependent)
                     insert_idx = len(queue)
                     for i, queued_node in enumerate(queue):
-                        if rank[queued_node] < dep_rank:
+                        queued_key = (-levels[queued_node], depths[queued_node], queued_node)
+                        if queued_key > key:
                             insert_idx = i
                             break
                     queue.insert(insert_idx, dependent)
 
-    # Handle remaining nodes (cycles and nodes not yet processed, but not isolated)
-    remaining = all_modules - set(sorted_list) - isolated_nodes
+    # Handle remaining nodes (cycles)
+    remaining = all_modules - set(sorted_list)
     if remaining:
-        # Add remaining nodes sorted alphabetically
         sorted_list.extend(sorted(remaining))
 
-    # Add isolated nodes last (sorted alphabetically)
-    if isolated_nodes:
-        sorted_list.extend(sorted(isolated_nodes))
-
-    return sorted_list
+    return sorted_list, levels, depths
 
 
 def format_dot(results, highlight_cycles=True):
@@ -381,6 +392,8 @@ def main(argv=sys.argv):
                         help='Output modules in topological sort order (dependencies first)')
     parser.add_argument('--all-imports', action='store_true',
                         help='Include transitive imports in JSON output (requires --json)')
+    parser.add_argument('-v', '--verbose', action='store_true',
+                        help='Show additional details (e.g., level/depth with --sort)')
     parser.add_argument('--version', action='version',
                         version='.'.join(str(i) for i in __version__))
     config = parser.parse_args(argv[1:])
@@ -477,9 +490,12 @@ def main(argv=sys.argv):
     elif config.dot:
         print(format_dot(results))
     elif config.sort:
-        sorted_modules = topological_sort(results)
+        sorted_modules, levels, depths = topological_sort(results)
         for module in sorted_modules:
-            print(module)
+            if config.verbose:
+                print(f"{module}\t{levels[module]}\t{depths[module]}")
+            else:
+                print(module)
     else:
         # Text format
         if len(results) == 1:
