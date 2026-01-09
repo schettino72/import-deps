@@ -5,7 +5,8 @@ import json
 import pathlib
 import sys
 
-from . import __version__, PyModule, ModuleSet, ast_defined_names, ast_inner_imports
+from . import __version__, PyModule, ModuleSet
+from .core import ast_defined_names, ast_inner_imports
 from .graph import ModuleResult, get_all_imports, detect_cycles, topological_sort
 
 

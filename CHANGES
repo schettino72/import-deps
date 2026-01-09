@@ -2,13 +2,13 @@
 Changes
 =======
 
-0.5.0 (*unreleased*)
+0.5.0 (*2025-01-09*)
 ====================
 
 - cli: support multiple paths (files and/or directories)
 - cli: unified --check flag with optional type (all, circular, reimports, inner)
 - cli: add --all-imports flag to include transitive imports in JSON output
-- cli: --sort now uses lexicographic ranking (level DESC, depth ASC)
+- cli: improved --sort algorithm, see docs for details
 - cli: add -v/--verbose flag to show level/depth columns with --sort
 
 

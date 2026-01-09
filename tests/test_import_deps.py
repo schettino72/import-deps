@@ -4,9 +4,8 @@ import pathlib
 
 import pytest
 
-from import_deps import ast_imports, ast_defined_names
-from import_deps import PyModule
-from import_deps import ModuleSet
+from import_deps.core import ast_imports, ast_defined_names, ast_inner_imports
+from import_deps import PyModule, ModuleSet
 from import_deps.__main__ import main, detect_reimports, get_all_imports
 
 
@@ -655,7 +654,6 @@ inner_imports_dir = pathlib.Path(__file__).parent / 'sample-inner-imports'
 
 class Test_InnerImports:
     def test_ast_inner_imports_detects_violations(self):
-        from import_deps import ast_inner_imports
         inner = ast_inner_imports(inner_imports_dir / 'has_inner.py')
 
         # Should detect 3 inner imports
@@ -666,7 +664,6 @@ class Test_InnerImports:
         assert 14 in lines  # import re
 
     def test_ast_inner_imports_clean_file(self):
-        from import_deps import ast_inner_imports
         inner = ast_inner_imports(inner_imports_dir / 'clean.py')
 
         # Should detect no inner imports
