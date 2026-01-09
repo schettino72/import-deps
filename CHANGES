@@ -6,7 +6,7 @@ Changes
 ====================
 
 - cli: support multiple paths (files and/or directories)
-- cli: add --check-reimports flag to detect re-imports (importing from a module that re-exports instead of the original source)
+- cli: unified --check flag with optional type (all, circular, reimports, inner)
 - cli: add --all-imports flag to include transitive imports in JSON output
 - cli: --sort now uses lexicographic ranking (level DESC, depth ASC)
 - cli: add -v/--verbose flag to show level/depth columns with --sort

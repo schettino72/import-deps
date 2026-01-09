@@ -5,7 +5,7 @@ import json
 import pathlib
 import sys
 
-from . import __version__, PyModule, ModuleSet, ast_defined_names
+from . import __version__, PyModule, ModuleSet, ast_defined_names, ast_inner_imports
 from .graph import ModuleResult, get_all_imports, detect_cycles, topological_sort
 
 
@@ -178,10 +178,9 @@ def main(argv=sys.argv):
                         help='Output results in JSON format')
     parser.add_argument('--dot', action='store_true',
                         help='Output results in DOT format for graphviz')
-    parser.add_argument('--check', action='store_true',
-                        help='Check for circular dependencies and exit with error if found')
-    parser.add_argument('--check-reimports', action='store_true',
-                        help='Check for re-imports (importing from re-exporting module instead of original)')
+    parser.add_argument('--check', nargs='?', const='all', metavar='TYPE',
+                        choices=['all', 'circular', 'reimports', 'inner'],
+                        help='Run checks: all (default), circular, reimports, or inner')
     parser.add_argument('--sort', action='store_true',
                         help='Output modules in topological sort order (dependencies first)')
     parser.add_argument('--all-imports', action='store_true',
@@ -244,40 +243,64 @@ def main(argv=sys.argv):
         for result in results:
             result['all_imports'] = sorted(all_imports_map.get(result['module'], set()))
 
-    # Check for circular dependencies
+    # Run checks
     if config.check:
-        cycle_edges = detect_cycles(results)
-        if cycle_edges:
-            print("Circular dependencies detected:", file=sys.stderr)
+        check_type = config.check
+        has_errors = False
 
-            # Group cycles by modules involved
-            cycles_by_module = {}
-            for src, dst in cycle_edges:
-                if src not in cycles_by_module:
-                    cycles_by_module[src] = []
-                cycles_by_module[src].append(dst)
+        # Check circular dependencies
+        if check_type in ('all', 'circular'):
+            cycle_edges = detect_cycles(results)
+            if cycle_edges:
+                has_errors = True
+                print("Circular dependencies detected:", file=sys.stderr)
+                cycles_by_module = {}
+                for src, dst in cycle_edges:
+                    if src not in cycles_by_module:
+                        cycles_by_module[src] = []
+                    cycles_by_module[src].append(dst)
+                for src in sorted(cycles_by_module.keys()):
+                    for dst in sorted(cycles_by_module[src]):
+                        print(f"  {src} -> {dst}", file=sys.stderr)
+            elif check_type == 'circular':
+                print("No circular dependencies found.")
 
-            for src in sorted(cycles_by_module.keys()):
-                for dst in sorted(cycles_by_module[src]):
-                    print(f"  {src} -> {dst}", file=sys.stderr)
+        # Check re-imports
+        if check_type in ('all', 'reimports'):
+            violations = detect_reimports(mset)
+            if violations:
+                has_errors = True
+                print("Re-imports detected:", file=sys.stderr)
+                for v in sorted(violations, key=lambda x: (x['module'], x['name'])):
+                    print(f"  {v['module']}: '{v['name']}' imported from {v['imported_from']}", file=sys.stderr)
+                    print(f"    -> should import from {v['original_source']}", file=sys.stderr)
+            elif check_type == 'reimports':
+                print("No re-imports found.")
 
-            sys.exit(1)
-        else:
-            print("No circular dependencies found.")
-            sys.exit(0)
+        # Check inner imports
+        if check_type in ('all', 'inner'):
+            violations = []
+            for result in results:
+                inner = ast_inner_imports(result['filepath'])
+                for line, col, module in inner:
+                    violations.append({
+                        'file': result['filepath'],
+                        'line': line,
+                        'col': col,
+                        'import': module
+                    })
+            if violations:
+                has_errors = True
+                print("Inner imports detected:", file=sys.stderr)
+                for v in sorted(violations, key=lambda x: (x['file'], x['line'])):
+                    print(f"  {v['file']}:{v['line']}:{v['col']}: {v['import']}", file=sys.stderr)
+            elif check_type == 'inner':
+                print("No inner imports found.")
 
-    # Check for re-imports
-    if config.check_reimports:
-        violations = detect_reimports(mset)
-        if violations:
-            print("Re-imports detected:", file=sys.stderr)
-            for v in sorted(violations, key=lambda x: (x['module'], x['name'])):
-                print(f"  {v['module']}: '{v['name']}' imported from {v['imported_from']}", file=sys.stderr)
-                print(f"    -> should import from {v['original_source']}", file=sys.stderr)
-            sys.exit(1)
-        else:
-            print("No re-imports found.")
-            sys.exit(0)
+        if check_type == 'all' and not has_errors:
+            print("All checks passed.")
+
+        sys.exit(1 if has_errors else 0)
 
     # Output results
     if config.json:

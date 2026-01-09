@@ -148,27 +148,43 @@ The DOT output features:
 - Sub-packages nested hierarchically
 - Circular dependencies highlighted in **bold red arrows**
 
-### Check for circular dependencies
+### Checks
 
-Use the `--check` flag to detect circular dependencies and exit with error if any are found:
+Use `--check` to run all checks, or `--check=TYPE` for a specific check:
+
+| Flag | Check |
+|------|-------|
+| `--check` | Run all checks |
+| `--check=circular` | Circular dependencies only |
+| `--check=reimports` | Re-imports only |
+| `--check=inner` | Inner imports only |
 
 ```bash
 > import_deps foo/ --check
-No circular dependencies found.
+All checks passed.
 
-# If cycles are detected:
-> import_deps foo/ --check
+# Or run a specific check:
+> import_deps foo/ --check=circular
+No circular dependencies found.
+```
+
+This is useful for CI/CD pipelines to enforce code quality rules.
+
+### Check for circular dependencies
+
+Use `--check=circular` to detect circular dependencies:
+
+```bash
+> import_deps foo/ --check=circular
 Circular dependencies detected:
   foo.module_a -> foo.module_b
   foo.module_b -> foo.module_a
 # (exits with code 1)
 ```
 
-This is useful for CI/CD pipelines to enforce DAG (Directed Acyclic Graph) structure in your codebase.
-
 ### Check for re-imports
 
-Use the `--check-reimports` flag to detect re-imports. A re-import occurs when you import a name from a module that itself imported it from somewhere else, rather than importing from the original source.
+Use `--check=reimports` to detect re-imports. A re-import occurs when you import a name from a module that itself imported it from somewhere else, rather than importing from the original source.
 
 ```python
 # pkg/module_a.py - defines foo_func
@@ -183,14 +199,14 @@ from .module_b import foo_func  # re-import!
 ```
 
 ```bash
-> import_deps pkg/ --check-reimports
+> import_deps pkg/ --check=reimports
 Re-imports detected:
   pkg.module_c: 'foo_func' imported from pkg.module_b
     -> should import from pkg.module_a
 # (exits with code 1)
 
 # If no re-imports:
-> import_deps pkg/ --check-reimports
+> import_deps pkg/ --check=reimports
 No re-imports found.
 ```
 
@@ -200,6 +216,36 @@ This is useful for:
 - Enforcing clean import hygiene in your codebase
 - Making dependencies explicit and traceable
 - Avoiding confusion about where symbols are actually defined
+
+### Check for inner imports
+
+Use `--check=inner` to detect imports inside functions or classes (not at module level).
+
+```python
+# pkg/module.py
+import os  # OK - at module level
+
+def some_function():
+    import json  # BAD - inner import
+    from pathlib import Path  # BAD - inner import
+```
+
+```bash
+> import_deps pkg/ --check=inner
+Inner imports detected:
+  pkg/module.py:5:4: json
+  pkg/module.py:6:4: pathlib
+# (exits with code 1)
+
+# If no inner imports:
+> import_deps pkg/ --check=inner
+No inner imports found.
+```
+
+This is useful for:
+- Enforcing consistent import style (all imports at module level)
+- Improving code readability and maintainability
+- Making dependencies visible at the top of each file
 
 ### Topological sort
 

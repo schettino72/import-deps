@@ -320,9 +320,9 @@ class Test_CLI(object):
         assert 'color=red' not in output
 
     def test_check_no_cycles(self, capsys):
-        # Test --check on data without cycles
+        # Test --check=circular on data without cycles
         with pytest.raises(SystemExit) as exc_info:
-            main(['import_deps', str(FOO.pkg), '--check'])
+            main(['import_deps', str(FOO.pkg), '--check=circular'])
 
         assert exc_info.value.code == 0
         captured = capsys.readouterr()
@@ -557,9 +557,9 @@ class Test_ReimportDetection:
         assert len(module_d_violations) == 0
 
     def test_check_reimports_cli_fails(self, capsys):
-        # Test --check-reimports on data with violations
+        # Test --check=reimports on data with violations
         with pytest.raises(SystemExit) as exc_info:
-            main(['import_deps', str(REIMPORT.pkg), '--check-reimports'])
+            main(['import_deps', str(REIMPORT.pkg), '--check=reimports'])
 
         assert exc_info.value.code == 1
         captured = capsys.readouterr()
@@ -568,9 +568,9 @@ class Test_ReimportDetection:
         assert 'FooClass' in captured.err
 
     def test_check_reimports_cli_passes(self, capsys):
-        # Test --check-reimports on data without violations
+        # Test --check=reimports on data without violations
         with pytest.raises(SystemExit) as exc_info:
-            main(['import_deps', str(FOO.pkg), '--check-reimports'])
+            main(['import_deps', str(FOO.pkg), '--check=reimports'])
 
         assert exc_info.value.code == 0
         captured = capsys.readouterr()
@@ -647,3 +647,46 @@ class Test_AllImports:
         sub_a = next(m for m in result if m['module'] == 'foo.sub.sub_a')
         assert sub_a['imports'] == ['foo.foo_d']
         assert set(sub_a['all_imports']) == {'foo.foo_d', 'foo.foo_c', 'foo.__init__'}
+
+
+# Inner imports detection tests
+inner_imports_dir = pathlib.Path(__file__).parent / 'sample-inner-imports'
+
+
+class Test_InnerImports:
+    def test_ast_inner_imports_detects_violations(self):
+        from import_deps import ast_inner_imports
+        inner = ast_inner_imports(inner_imports_dir / 'has_inner.py')
+
+        # Should detect 3 inner imports
+        assert len(inner) == 3
+        lines = [i[0] for i in inner]
+        assert 7 in lines  # import json
+        assert 8 in lines  # from pathlib import Path
+        assert 14 in lines  # import re
+
+    def test_ast_inner_imports_clean_file(self):
+        from import_deps import ast_inner_imports
+        inner = ast_inner_imports(inner_imports_dir / 'clean.py')
+
+        # Should detect no inner imports
+        assert len(inner) == 0
+
+    def test_check_inner_imports_cli_fails(self, capsys):
+        with pytest.raises(SystemExit) as exc_info:
+            main(['import_deps', str(inner_imports_dir / 'has_inner.py'), '--check=inner'])
+
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert 'Inner imports detected' in captured.err
+        assert 'json' in captured.err
+        assert 'pathlib' in captured.err
+        assert 're' in captured.err
+
+    def test_check_inner_imports_cli_passes(self, capsys):
+        with pytest.raises(SystemExit) as exc_info:
+            main(['import_deps', str(inner_imports_dir / 'clean.py'), '--check=inner'])
+
+        assert exc_info.value.code == 0
+        captured = capsys.readouterr()
+        assert 'No inner imports found' in captured.out

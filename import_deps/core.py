@@ -87,6 +87,47 @@ def ast_defined_names(file_path):
     return finder.defined
 
 
+class _InnerImportsFinder(ast.NodeVisitor):
+    """Find imports inside functions/classes (not at module level).
+    :ivar inner_imports: list of (line, col, module_name)
+    """
+    def __init__(self):
+        self.inner_imports = []
+        self._depth = 0
+
+    def visit_FunctionDef(self, node):
+        self._depth += 1
+        self.generic_visit(node)
+        self._depth -= 1
+
+    visit_AsyncFunctionDef = visit_FunctionDef
+    visit_ClassDef = visit_FunctionDef
+
+    def visit_Import(self, node):
+        if self._depth > 0:
+            for alias in node.names:
+                self.inner_imports.append((node.lineno, node.col_offset, alias.name))
+        self.generic_visit(node)
+
+    def visit_ImportFrom(self, node):
+        if self._depth > 0:
+            module = node.module or ''
+            self.inner_imports.append((node.lineno, node.col_offset, module))
+        self.generic_visit(node)
+
+
+def ast_inner_imports(file_path):
+    """get list of imports inside functions/classes (not at module level)
+    :return: list of (line, col, module_name)
+    """
+    with pathlib.Path(file_path).open('r') as fp:
+        text = fp.read()
+    mod_ast = ast.parse(text, str(file_path))
+    finder = _InnerImportsFinder()
+    finder.visit(mod_ast)
+    return finder.inner_imports
+
+
 class PyModule(object):
     """Represents a python module
 
