@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "import_deps"
-version = "0.5.0"
+version = "0.5.1"
 description = "find python module imports"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -52,3 +52,9 @@ dev = [
 dev = [
     "twine>=6.2.0",
 ]
+
+[tool.hatch.build]
+only-include = ["import_deps"]
+
+[tool.hatch.build.targets.sdist]
+include = ["import_deps", "tests", "README.md", "CHANGES", "LICENSE"]

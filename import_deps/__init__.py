@@ -1,4 +1,4 @@
-__version__ = (0, 5, 0)
+__version__ = (0, 5, 1)
 
 from .core import PyModule, ModuleSet
 from .graph import ModuleResult, SortResult, get_all_imports, detect_cycles, topological_sort
