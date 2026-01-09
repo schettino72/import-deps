@@ -181,7 +181,8 @@ def main(argv=sys.argv):
                         help='Output results in DOT format for graphviz')
     parser.add_argument('--check', nargs='?', const='all', metavar='TYPE',
                         choices=['all', 'circular', 'reimports', 'inner'],
-                        help='Run checks: all (default), circular, reimports, or inner')
+                        help='Run checks: all (default), circular, reimports, or inner. '
+                             'Use --check=all before PATH, or --check after PATH')
     parser.add_argument('--sort', action='store_true',
                         help='Output modules in topological sort order (dependencies first)')
     parser.add_argument('--all-imports', action='store_true',

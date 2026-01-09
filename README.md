@@ -168,6 +168,12 @@ All checks passed.
 No circular dependencies found.
 ```
 
+**Note:** When using `--check` without a type before PATH, use `--check=all`:
+```bash
+> import_deps --check=all foo/   # OK
+> import_deps foo/ --check       # OK
+```
+
 This is useful for CI/CD pipelines to enforce code quality rules.
 
 ### Check for circular dependencies
