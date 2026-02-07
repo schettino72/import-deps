@@ -367,10 +367,6 @@ for mod in sorted(module_set.by_name.keys()):
 
 
 
-## Projects using import-deps
-
-- [rut](https://schettino72.github.io/rut/) - a test runner
-
 ### ast_imports(file_path)
 
 `ast_imports` is a low level function that returns a list of entries for import statement in the module.
@@ -412,4 +408,8 @@ ast_imports('foo.py')
 ('datetime', 'time', None, 0)
 ('datetime', 'timedelta', None, 0)
 ```
+
+## Projects using import-deps
+
+- [rut](https://schettino72.github.io/rut/) - a test runner
 
