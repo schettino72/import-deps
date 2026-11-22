@@ -38,7 +38,7 @@ Issues = "https://github.com/schettino72/import-deps/issues"
 [project.scripts]
 import_deps = "import_deps.__main__:main"
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
     "pyflakes",
     "pytest",
@@ -46,12 +46,11 @@ dev = [
     "doit",
     "coverage",
     "doit-py",
-]
-
-[dependency-groups]
-dev = [
     "twine>=6.2.0",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
 
 [tool.hatch.build]
 only-include = ["import_deps"]
